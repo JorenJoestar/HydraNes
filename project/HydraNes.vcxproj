@@ -1,0 +1,217 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="14.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{DC481847-FF83-44A5-B88E-D0D31DDFA80A}</ProjectGuid>
+    <Keyword>Win32Proj</Keyword>
+    <RootNamespace>HydraNes</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0.16299.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v140</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v140</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v141</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v141</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="Shared">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="Hydra.props" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="Hydra.props" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="Hydra.props" />
+    <Import Project="Debug.props" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="Hydra.props" />
+    <Import Project="Release.props" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <LinkIncremental>true</LinkIncremental>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <LinkIncremental>true</LinkIncremental>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <LinkIncremental>false</LinkIncremental>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <LinkIncremental>false</LinkIncremental>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <ClCompile>
+      <PrecompiledHeader>
+      </PrecompiledHeader>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>Disabled</Optimization>
+      <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <PrecompiledHeader>
+      </PrecompiledHeader>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>Disabled</Optimization>
+      <PreprocessorDefinitions>HY_OPENGL;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>..\src;..\src\apu\include\;..\external\include;$(LIB_PATH)\glew-1.13.0\include\;$(LIB_PATH)\glm</AdditionalIncludeDirectories>
+      <SupportJustMyCode>false</SupportJustMyCode>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>xaudio2.lib;opengl32.lib;glew32.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <PrecompiledHeader>
+      </PrecompiledHeader>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <PrecompiledHeader>
+      </PrecompiledHeader>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <PreprocessorDefinitions>HY_OPENGL;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>..\src;..\src\apu\include\;..\external\include;$(LIB_PATH)\glew-1.13.0\include\;$(LIB_PATH)\glm</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>xaudio2.lib;opengl32.lib;glew32.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="..\src\APU\apu_snapshot.cpp" />
+    <ClCompile Include="..\src\APU\Blip_Buffer.cpp" />
+    <ClCompile Include="..\src\APU\Multi_Buffer.cpp" />
+    <ClCompile Include="..\src\APU\Nes_Apu.cpp" />
+    <ClCompile Include="..\src\APU\Nes_Namco.cpp" />
+    <ClCompile Include="..\src\APU\Nes_Oscs.cpp" />
+    <ClCompile Include="..\src\APU\Nes_Vrc6.cpp" />
+    <ClCompile Include="..\src\APU\Nonlinear_Buffer.cpp" />
+    <ClCompile Include="..\src\APU\Sound_Queue.cpp" />
+    <ClCompile Include="..\src\Hydra\Application\Application.cpp" />
+    <ClCompile Include="..\src\Hydra\imgui\imgui.cpp" />
+    <ClCompile Include="..\src\Hydra\imgui\imgui_demo.cpp" />
+    <ClCompile Include="..\src\Hydra\imgui\imgui_draw.cpp" />
+    <ClCompile Include="..\src\Hydra\imgui\imgui_hydra.cpp" />
+    <ClCompile Include="..\src\Hydra\Kernel\File.cpp" />
+    <ClCompile Include="..\src\Hydra\Kernel\Input.cpp" />
+    <ClCompile Include="..\src\Hydra\Kernel\Lib.cpp" />
+    <ClCompile Include="..\src\Hydra\Kernel\Log.cpp" />
+    <ClCompile Include="..\src\Hydra\Kernel\Process.cpp" />
+    <ClCompile Include="..\src\Hydra\Kernel\Time.cpp" />
+    <ClCompile Include="..\src\Hydra\Renderer\Camera.cpp" />
+    <ClCompile Include="..\src\Hydra\Renderer\Renderer.cpp" />
+    <ClCompile Include="..\src\Hydra\Renderer\RendererOpenGL.cpp" />
+    <ClCompile Include="..\src\main.cpp" />
+    <ClCompile Include="..\src\MemoryEditor.cpp" />
+    <ClCompile Include="..\src\Nes.cpp" />
+    <ClCompile Include="..\src\Ui.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\src\Hydra\Application\Application.h" />
+    <ClInclude Include="..\src\Hydra\imgui\imconfig.h" />
+    <ClInclude Include="..\src\Hydra\imgui\imgui.h" />
+    <ClInclude Include="..\src\Hydra\imgui\imgui_hydra.h" />
+    <ClInclude Include="..\src\Hydra\imgui\imgui_internal.h" />
+    <ClInclude Include="..\src\Hydra\imgui\stb_rect_pack.h" />
+    <ClInclude Include="..\src\Hydra\imgui\stb_textedit.h" />
+    <ClInclude Include="..\src\Hydra\imgui\stb_truetype.h" />
+    <ClInclude Include="..\src\Hydra\Kernel\Assert.h" />
+    <ClInclude Include="..\src\Hydra\Kernel\DataStructures.h" />
+    <ClInclude Include="..\src\Hydra\Kernel\DataStructures.hpp" />
+    <ClInclude Include="..\src\Hydra\Kernel\File.h" />
+    <ClInclude Include="..\src\Hydra\Kernel\Input.h" />
+    <ClInclude Include="..\src\Hydra\Kernel\Lib.h" />
+    <ClInclude Include="..\src\Hydra\Kernel\Log.h" />
+    <ClInclude Include="..\src\Hydra\Kernel\Process.h" />
+    <ClInclude Include="..\src\Hydra\Kernel\Time.h" />
+    <ClInclude Include="..\src\Hydra\Kernel\Types.h" />
+    <ClInclude Include="..\src\Hydra\Renderer\Camera.h" />
+    <ClInclude Include="..\src\Hydra\Renderer\Renderer.h" />
+    <ClInclude Include="..\src\Hydra\Renderer\RendererOpenGL.h" />
+    <ClInclude Include="..\src\Hydra\Renderer\RenderInterfaces.h" />
+    <ClInclude Include="..\src\Hydra\Renderer\RenderResources.h" />
+    <ClInclude Include="..\src\Hydra\Renderer\RenderSystem.h" />
+    <ClInclude Include="..\src\Main.h" />
+    <ClInclude Include="..\src\MemoryEditor.h" />
+    <ClInclude Include="..\src\Nes.h" />
+    <ClInclude Include="..\src\Ui.h" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

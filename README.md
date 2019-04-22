@@ -37,3 +37,5 @@ Keys are:
 ## References and credits
 - The incredible NesDev wiki and community: http://wiki.nesdev.com/w/index.php/Nesdev.
 - Blargg's APU sound chip emulator: http://blargg.8bitalley.com/libs/audio.html#Nes_Snd_Emu
+- The amazing ImGui: https://github.com/ocornut/imgui
+- The most precise NES emulator: https://github.com/SourMesen/Mesen

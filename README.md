@@ -28,6 +28,7 @@ The roms should be in the folder 'Bin'.
 - MMC1 / SxROM (Mapper 001)
 - 0UxROM (Mapper 002)
 - CNROM (Mapper 003)
+- MMC3 (Mapper 004)
 
 ## Usage
 Run the emulator, click on the windows menu (upper left).
@@ -41,7 +42,7 @@ Keys are:
 - x=b
 
 ## TODO
- - Support for MMC3 mapper (and many more mappers!)
+ - Support for more mappers
  - Gamepad support
  - Configuration load/save
  - Console load/save state

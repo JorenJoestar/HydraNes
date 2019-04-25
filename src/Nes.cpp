@@ -390,7 +390,7 @@ bool Nes::Cart::LoadRom( cstring filename ) {
 }
 
 //////////////////////////////////////////////////////////////////////////
-Nes::Mapper0::Mapper0( Cart & cart ) {
+Nes::Mapper0::Mapper0( Cpu* cpu, Cart & cart ) : Mapper(cpu) {
     const uint16 romPrgBanks = cart.prgRom.size() / kPrgBankSize;
     prgAddressMask = romPrgBanks == 1 ? 0x3FFF : 0x7FFF;
 
@@ -425,7 +425,7 @@ void Nes::Mapper0::PrgWrite( uint16 address, uint8 data ) {
 //#define MMC1_ASSERT
 //#define MAPPER_WRITE_ASSERT
 
-Nes::Mapper1::Mapper1( Cart & cart ) {
+Nes::Mapper1::Mapper1( Cpu* cpu, Cart & cart ) : Mapper( cpu ) {
 
     // Initial state
     writeCounter = 0;
@@ -435,7 +435,7 @@ Nes::Mapper1::Mapper1( Cart & cart ) {
     registers[0] = 0xC;
 
     prgRomBankCount = cart.prgRom.size() / kPrgBankSize;
-    chrRomBankCount = cart.chrRom.size() ?cart.chrRom.size() / kChrBankSize : 1;
+    chrRomBankCount = cart.chrRom.size() ? cart.chrRom.size() / kChrBankSize : 1;
 
     prgRam = cart.prgRam.size() ? cart.prgRam.begin() : nullptr;
     prg = cart.prgRom.begin();
@@ -608,7 +608,7 @@ void Nes::Mapper1::UpdateBanks() {
 }
 
 //////////////////////////////////////////////////////////////////////////
-Nes::Mapper2::Mapper2( Cart & cart ) {
+Nes::Mapper2::Mapper2( Cpu* cpu, Cart & cart ) : Mapper( cpu ) {
     prgBankSelector = 0;
 
     mirroring = (cart.romHeader.flag0 & 1) ? MirrorVertical : MirrorHorizontal;
@@ -652,7 +652,7 @@ void Nes::Mapper2::UpdatePrgBank() {
 }
 
 //////////////////////////////////////////////////////////////////////////
-Nes::Mapper3::Mapper3( Cart & cart ) {
+Nes::Mapper3::Mapper3( Cpu* cpu, Cart & cart ) : Mapper(cpu) {
     const uint16 romPrgBanks = cart.prgRom.size() / kPrgBankSize;
     prgAddressMask = romPrgBanks == 1 ? 0x3FFF : 0x7FFF;
 
@@ -686,8 +686,195 @@ void Nes::Mapper3::PrgWrite( uint16 address, uint8 data ) {
 }
 
 void Nes::Mapper3::UpdateChrBank() {
-    chrBank = chr + (chrBankSelector & 0x3)* kChrBankSize;
+    chrBank = chr + (chrBankSelector & 0x3) * kChrBankSize;
 }
+
+//////////////////////////////////////////////////////////////////////////
+Nes::Mapper4::Mapper4( Cpu* cpu, Cart& cart ) : Mapper(cpu) {
+
+    prgMemory = cart.prgRom.begin();
+    chrMemory = cart.chrRom.begin();
+    prgRamMemory = cart.prgRam.begin();
+
+    // 8k prg rom bank
+    prgRomBankCount = cart.prgRom.size() / kMMC3PrgBankSize;
+
+    registers[0] = 0;
+    registers[1] = 2;
+    registers[2] = 4;
+    registers[3] = 5;
+    registers[4] = 6;
+    registers[5] = 7;
+    registers[6] = 0;
+    registers[7] = 1;
+
+    bankSelector = 0;
+    mirroringRegister = 0;
+
+    irqCounter = 0;
+    irqEnable = 0;
+    irqReload = 0;
+    irqReloadPeriod = 0;
+
+    UpdateBanks();
+}
+
+uint8 Nes::Mapper4::ChrRead( uint16 address ) {
+    return chrBanks[address / kMMC3ChrBankSize][address & kMMC3ChrBankMask];
+}
+
+void Nes::Mapper4::ChrWrite( uint16 address, uint8 data ) {
+    chrBanks[address / kMMC3ChrBankSize][address & kMMC3ChrBankMask] = data;
+}
+
+uint8 Nes::Mapper4::PrgRead( uint16 address ) {
+    return address < 0x8000 ? prgRamMemory[address - 0x6000] : prgBanks[(address - 0x8000) / kMMC3PrgBankSize][address & kMMC3PrgBankMask];
+}
+
+void Nes::Mapper4::PrgWrite( uint16 address, uint8 data ) {
+
+    if ( address < 0x8000 ) {
+        prgRamMemory[address - 0x6000] = data;
+    }
+    else if ( address & 0x8000 ) {
+        
+        switch ( address & 0xE001 ) {
+            case 0x8000:
+            {
+                bankSelector = data;
+                UpdateBanks();
+                break;
+            }
+
+            case 0x8001:
+            {
+                uint8 currentRegister = bankSelector & 0x7;
+                //data = data % prgRomBankCount;
+                // R0 and R1 ignore the bottom bit, as the value written still counts banks in 1KB units but odd numbered banks can't be selected.
+                data = currentRegister <= 1 ? data & ~0x1 : data;
+                registers[currentRegister] = data;
+                UpdateBanks();
+                break;
+            }
+
+            case 0xA000:
+            {
+                mirroringRegister = data & 0x1;
+                UpdateMirroring();
+                break;
+            }
+
+            case 0xA001:
+            {
+                UpdateBanks();
+                break;
+            }
+
+            case 0xC000:
+            {
+                irqReloadPeriod = data;
+                break;
+            }
+
+            case 0xC001:
+            {
+                irqReload = 1;
+                irqCounter = 0;
+                break;
+            }
+
+            case 0xE000:
+            {
+                irqEnable = 0;
+                cpu->ClearIRQ( 1 );
+                break;
+            }
+
+            case 0xE001:
+            {
+                irqEnable = 1;
+                break;
+            }
+        }
+    }
+}
+
+void Nes::Mapper4::PpuAddress12Rise() {
+    if ( irqCounter == 0 && irqReload ) {
+        irqCounter = irqReloadPeriod;
+    }
+    else {
+        --irqCounter;
+    }
+
+    if ( irqCounter == 0 && irqEnable ) {
+        cpu->SetIRQ( 1 );
+    }
+
+    irqReload = 0;
+}
+
+void Nes::Mapper4::UpdateMirroring() {
+    mirroring = mirroringRegister ? MirrorHorizontal : MirrorVertical;
+}
+
+void Nes::Mapper4::UpdateBanks() {
+
+    // Prg mode 1
+    if ( (bankSelector & 0x40) >> 6 ) {
+        uint8 bank0 = prgRomBankCount - 2;
+        bank0 = bank0 >= prgRomBankCount ? 0 : bank0;
+        uint8 bank1 = prgRomBankCount - 1;
+        bank1 = bank1 >= prgRomBankCount ? 0 : bank1;
+
+        prgBanks[0] = prgMemory + (bank0) * kMMC3PrgBankSize;
+        prgBanks[1] = prgMemory + registers[7] * kMMC3PrgBankSize;
+        prgBanks[2] = prgMemory + registers[6] * kMMC3PrgBankSize;
+        prgBanks[3] = prgMemory + (bank1) * kMMC3PrgBankSize;
+    }
+    else {
+        // Prg mode 0
+        uint8 bank0 = prgRomBankCount - 2;
+        bank0 = bank0 >= prgRomBankCount ? 0 : bank0;
+        uint8 bank1 = prgRomBankCount - 1;
+        bank1 = bank1 >= prgRomBankCount ? 0 : bank1;
+
+        prgBanks[0] = prgMemory + registers[6] * kMMC3PrgBankSize;
+        prgBanks[1] = prgMemory + registers[7] * kMMC3PrgBankSize;
+        prgBanks[2] = prgMemory + (bank0) * kMMC3PrgBankSize;
+        prgBanks[3] = prgMemory + (bank1) * kMMC3PrgBankSize;
+    }
+
+    // Chr mode 1
+    if ( (bankSelector & 0x80) >> 7 ) {
+        // 1 kb banks
+        chrBanks[0] = chrMemory + registers[2] * kMMC3ChrBankSize;
+        chrBanks[1] = chrMemory + registers[3] * kMMC3ChrBankSize;
+        chrBanks[2] = chrMemory + registers[4] * kMMC3ChrBankSize;
+        chrBanks[3] = chrMemory + registers[5] * kMMC3ChrBankSize;
+
+        // 2 kb banks, split the addressess
+        chrBanks[4] = chrMemory + (registers[0] & 0xFE) * kMMC3ChrBankSize;
+        chrBanks[5] = chrMemory + (registers[0] | 0x01) * kMMC3ChrBankSize;
+        chrBanks[6] = chrMemory + (registers[1] & 0xFE) * kMMC3ChrBankSize;
+        chrBanks[7] = chrMemory + (registers[1] | 0x01) * kMMC3ChrBankSize;
+    } else {
+        // Chr mode 0
+
+        // 2 kb banks, split the addressess
+        chrBanks[0] = chrMemory + (registers[0] & 0xFE) * kMMC3ChrBankSize;
+        chrBanks[1] = chrMemory + (registers[0] | 0x01) * kMMC3ChrBankSize;
+        chrBanks[2] = chrMemory + (registers[1] & 0xFE) * kMMC3ChrBankSize;
+        chrBanks[3] = chrMemory + (registers[1] | 0x01) * kMMC3ChrBankSize;
+
+        // 1 kb banks
+        chrBanks[4] = chrMemory + registers[2] * kMMC3ChrBankSize;
+        chrBanks[5] = chrMemory + registers[3] * kMMC3ChrBankSize;
+        chrBanks[6] = chrMemory + registers[4] * kMMC3ChrBankSize;
+        chrBanks[7] = chrMemory + registers[5] * kMMC3ChrBankSize;
+    }
+}
+
 //////////////////////////////////////////////////////////////////////////
 
 static uint16 NameTableMirroring( uint16 addr, Nes::Mapper::Mirroring mirroring ) {
@@ -709,27 +896,28 @@ void Nes::MemoryController::Init( Cart* cart, Cpu* cpu, Ppu* ppu, Controller* co
 
 void Nes::MemoryController::LoadMapper() {
     switch ( cart->mapperIndex ) {
-        case 0:
-        {
-            mapper = new Mapper0( *cart );
+        case 0: {
+            mapper = new Mapper0( cpu, *cart );
             break;
         }
 
-        case 1:
-        {
-            mapper = new Mapper1( *cart );
+        case 1: {
+            mapper = new Mapper1( cpu, *cart );
             break;
         }
 
-        case 2:
-        {
-            mapper = new Mapper2( *cart );
+        case 2: {
+            mapper = new Mapper2( cpu, *cart );
             break;
         }
 
-        case 3:
-        {
-            mapper = new Mapper3( *cart );
+        case 3: {
+            mapper = new Mapper3( cpu, *cart );
+            break;
+        }
+
+        case 4: {
+            mapper = new Mapper4( cpu, *cart );
             break;
         }
 
@@ -875,6 +1063,10 @@ void Nes::MemoryController::PpuWrite( uint16 address, uint8 data ) {
 
     PrintFormat( "PpuWrite Unhandled location %02X\n", address );
     //Assert( false && "unhandled location" );
+}
+
+void Nes::MemoryController::PpuAddress12Rise() {
+    mapper->PpuAddress12Rise();
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -1501,6 +1693,13 @@ void Nes::Ppu::Step() {
             // Reset vertical bits of V register.
             CopyVertV();
         }
+
+        // PPU A12 pin signaling
+        if ( (mask & MaskFlag_EnableBackground) && (mask & MaskFlag_EnableSprite) ) {
+            if ( pixelCycle == 260 ) {
+                memoryController->PpuAddress12Rise();
+            }
+        }
     }
 
     IncrementPixelCycle();
@@ -1579,6 +1778,7 @@ void Nes::Apu::Init( Cpu* cpu ) {
     this->cpu = cpu;
 
     volume = 0.1f;
+    Mute( true );
 
 #if defined (NES_EXTERNAL_APU)
     if ( !blipBuffer ) {

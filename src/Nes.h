@@ -79,24 +79,29 @@ namespace hydra {
 
             Mirroring       mirroring;
             uint8           prgRamWrite = false;
+            Cpu*            cpu;
+
+            Mapper( Cpu* cpu ) : cpu(cpu) { }
 
             virtual uint8   ChrRead( uint16 address ) = 0;
             virtual void    ChrWrite( uint16 address, uint8 data ) = 0;
 
             virtual uint8   PrgRead( uint16 address ) = 0;
             virtual void    PrgWrite( uint16 address, uint8 data ) = 0;
+
+            virtual void    PpuAddress12Rise() { }
         }; // struct Mapper
 
         // NROM128/NROM256
         struct Mapper0 : public Mapper {
 
-            Mapper0( Cart& cart );
+            Mapper0( Cpu* cpu, Cart& cart );
 
-            uint8           ChrRead( uint16 address );
-            void            ChrWrite( uint16 address, uint8 data );
+            uint8           ChrRead( uint16 address ) override;
+            void            ChrWrite( uint16 address, uint8 data ) override;
 
-            uint8           PrgRead( uint16 address );
-            void            PrgWrite( uint16 address, uint8 data );
+            uint8           PrgRead( uint16 address ) override;
+            void            PrgWrite( uint16 address, uint8 data ) override;
 
             uint16          prgAddressMask;
             uint8*          prg;
@@ -106,13 +111,13 @@ namespace hydra {
         // MMC1
         struct Mapper1 : public Mapper {
 
-            Mapper1( Cart& cart );
+            Mapper1( Cpu* cpu, Cart& cart );
 
-            uint8           ChrRead( uint16 address );
-            void            ChrWrite( uint16 address, uint8 data );
+            uint8           ChrRead( uint16 address ) override;
+            void            ChrWrite( uint16 address, uint8 data ) override;
 
-            uint8           PrgRead( uint16 address );
-            void            PrgWrite( uint16 address, uint8 data );
+            uint8           PrgRead( uint16 address ) override;
+            void            PrgWrite( uint16 address, uint8 data ) override;
 
             void            UpdateBanks();
 
@@ -141,13 +146,13 @@ namespace hydra {
         // UNROM
         struct Mapper2 : public Mapper {
 
-            Mapper2( Cart& cart );
+            Mapper2( Cpu* cpu, Cart& cart );
 
-            uint8           ChrRead( uint16 address );
-            void            ChrWrite( uint16 address, uint8 data );
+            uint8           ChrRead( uint16 address ) override;
+            void            ChrWrite( uint16 address, uint8 data ) override;
 
-            uint8           PrgRead( uint16 address );
-            void            PrgWrite( uint16 address, uint8 data );
+            uint8           PrgRead( uint16 address ) override;
+            void            PrgWrite( uint16 address, uint8 data ) override;
 
             void            UpdatePrgBank();
 
@@ -163,13 +168,13 @@ namespace hydra {
         // CNROM
         struct Mapper3 : public Mapper {
 
-            Mapper3( Cart& cart );
+            Mapper3( Cpu* cpu, Cart& cart );
 
-            uint8           ChrRead( uint16 address );
-            void            ChrWrite( uint16 address, uint8 data );
+            uint8           ChrRead( uint16 address ) override;
+            void            ChrWrite( uint16 address, uint8 data ) override;
 
-            uint8           PrgRead( uint16 address );
-            void            PrgWrite( uint16 address, uint8 data );
+            uint8           PrgRead( uint16 address ) override;
+            void            PrgWrite( uint16 address, uint8 data ) override;
 
             void            UpdateChrBank();
 
@@ -181,7 +186,47 @@ namespace hydra {
             uint8*          prg;
             uint8*          chr;
 
-        }; // struct Mapper2
+        }; // struct Mapper3
+
+        // MMC3
+        struct Mapper4 : public Mapper {
+
+            Mapper4( Cpu* cpu, Cart& cart );
+
+            uint8           ChrRead( uint16 address ) override;
+            void            ChrWrite( uint16 address, uint8 data ) override;
+
+            uint8           PrgRead( uint16 address ) override;
+            void            PrgWrite( uint16 address, uint8 data ) override;
+
+            void            PpuAddress12Rise() override;
+
+            void            UpdateBanks();
+            void            UpdateMirroring();
+
+            static const uint16 kMMC3PrgBankSize = 0x2000;
+            static const uint16 kMMC3PrgBankMask = kMMC3PrgBankSize - 1;
+            static const uint16 kMMC3ChrBankSize = 0x400;
+            static const uint16 kMMC3ChrBankMask = kMMC3ChrBankSize - 1;
+
+            uint8           prgRomBankCount, chrRomBankCount;
+            uint8*          prgMemory;
+            uint8*          chrMemory;
+            uint8*          prgRamMemory;
+
+            uint8*          prgBanks[4];
+            uint8*          chrBanks[8];
+
+            uint8           registers[8];
+            uint8           bankSelector;
+            uint8           mirroringRegister;
+            uint8           prgRamProtect;
+
+            uint8           irqReloadPeriod;
+            uint8           irqCounter;
+            uint8           irqReload;
+            uint8           irqEnable;
+        };
 
         //////////////////////////////////////////////////////////////////////////
         struct Screen {
@@ -259,6 +304,8 @@ namespace hydra {
 
             uint8               PpuRead( uint16 address );
             void                PpuWrite( uint16 address, uint8 data );
+
+            void                PpuAddress12Rise();
         }; // struct MemoryController
 
         // general architecture

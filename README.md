@@ -13,6 +13,12 @@ Window loop is handmade.
 
 ## Build
 Built and tested only on Windows, Visual Studio 2015 and 2017.
+Depends on:
+ - Glew 1.13
+ - Glm 0.98
+ - ImGui (included)
+ 
+Define the environment variable LIB_PATH pointing to the parent folder that contains both libraries.
 Just open the solution under project, build and launch.
 The roms should be in the folder 'Bin'.
 
@@ -33,6 +39,14 @@ Keys are:
 - shift=select
 - z=a
 - x=b
+
+## TODO
+ - Support for MMC3 mapper (and many more mappers!)
+ - Gamepad support
+ - Configuration load/save
+ - Console load/save state
+ - Pal versions!!!
+ - Memory management
 
 ## References and credits
 - The incredible NesDev wiki and community: http://wiki.nesdev.com/w/index.php/Nesdev.

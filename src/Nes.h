@@ -343,6 +343,7 @@ namespace hydra {
             Flags       flags;
 
             uint64      cycles;
+            uint32      frameCycles;
 
             uint16      opAddress;
             uint8       opCode;
@@ -400,7 +401,7 @@ namespace hydra {
 #endif
 
             void        DummyRead() { MemoryRead( PC ); }
-            void        DummyRead( uint16 address ) { MemoryRead( address ); }
+            void        DummyRead( uint16 address ) { Tick();/* MemoryRead( address );*/ }
             
             uint8       MemoryReadByte() { return MemoryRead( PC++ ); }
             

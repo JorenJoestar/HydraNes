@@ -567,6 +567,7 @@ bool MainState::Update( application::UpdateContext& context ) {
 
             uint64 currentCpuCycles = nes.cpu.cycles;
             uint32 currentFrame = nes.ppu.frames;
+            
 
             //PrintFormat( "Frame %u\n", currentFrame );
             // Execute 1 frame = execute until ppu changes frame.
@@ -576,6 +577,8 @@ bool MainState::Update( application::UpdateContext& context ) {
             uint64 elapsedCpuCycles = nes.cpu.cycles - currentCpuCycles;
             // Emulate APU
             nes.apu.EndFrame(elapsedCpuCycles);
+
+            nes.cpu.frameCycles = 0;
         }
 
         // Reset per frame data if frame is changed

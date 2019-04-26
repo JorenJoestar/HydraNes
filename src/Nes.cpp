@@ -79,12 +79,12 @@ namespace hydra {
 void Nes::Cpu::Step() {
 
     // Interrupt handling
-    if ( nmistate ) {
-        ExecuteNMI();
-    }
-    else if ( irqstate && !flags.i ) {
-        ExecuteIRQ();
-    }
+    //if ( nmistate ) {
+    //    ExecuteNMI();
+    //}
+    //else if ( irqstate && !flags.i ) {
+    //    ExecuteIRQ();
+    //}
 
 #if defined(NES_SHOW_ASM)
     if ( showAsm )
@@ -139,13 +139,13 @@ void Nes::Cpu::Step() {
 
     // TODO: this is still something I do not understand how to handle properly.
     // execute interrupts
-    //if(prevNmistate) {
-    //    nmistate = 0;
-    //    ExecuteNMI();
-    //}
-    //else if(prevIrqstate) {
-    //    ExecuteIRQ();
-    //}
+    if(prevNmistate) {
+        nmistate = 0;
+        ExecuteNMI();
+    }
+    else if(prevIrqstate) {
+        ExecuteIRQ();
+    }
 }
 
 void Nes::Cpu::Init( Ppu* ppu, Apu* apu, MemoryController* memoryController ) {
@@ -163,7 +163,7 @@ void Nes::Cpu::Reset() {
     memset( &flags, 0x24, 1 );
     memset( &ram, 0xFF, kRamSize );
 
-    cycles = 0;
+    cycles = frameCycles = 0;
     opCode = 0;
     opAddress = 0;
 
@@ -181,15 +181,17 @@ void Nes::Cpu::Reset() {
 }
 
 void Nes::Cpu::Tick() {
-    // update interrupts
-    prevNmistate = nmistate;
-    prevIrqstate = flags.i == 0 ? irqstate : 0;
-
+    
     ++cycles;
+    ++frameCycles;
 
     ppu->Tick();
     //apu->Tick();
     // mapper tick
+
+    // update interrupts
+    prevNmistate = nmistate;
+    prevIrqstate = flags.i == 0 ? irqstate : 0;
 }
 
 uint8 Nes::Cpu::MemoryRead( uint16 address ) {    
@@ -994,20 +996,15 @@ void Nes::MemoryController::CpuWrite( uint16 address, uint8 data ) {
             break;
         }
 
-        case 0x4015: {
-            apu->WriteControl( data );
+        case 0x4015:
+        case 0x4017:{
+            apu->CpuWrite( address, data );
             return;
             break;
         }
 
         case 0x4016: {
             controllers->WriteState( data );
-            return;
-            break;
-        }
-                     
-        case 0x4017: {
-            apu->WriteFrameCounter( data );
             return;
             break;
         }
@@ -1805,6 +1802,12 @@ void Nes::Apu::Init( Cpu* cpu ) {
 }
 
 void Nes::Apu::Reset() {
+#if defined (NES_EXTERNAL_APU)
+    if ( externalApu ) {
+        externalApu->reset();
+        blipBuffer->clear();
+    }
+#endif
     for ( size_t i = 0; i < 31; ++i ) {
         apuPulseTable[i] = 95.52f / (8128.0f / float( i ) + 100);
     }
@@ -1817,8 +1820,11 @@ void Nes::Apu::Reset() {
 }
 
 void Nes::Apu::Tick() {
-
-#if !defined (NES_EXTERNAL_APU)
+#if defined (NES_EXTERNAL_APU)
+    if ( externalApu ) {
+        externalApu->run_until( cpu->frameCycles - 1 );
+    }
+#else
 	// f = set interrupt flag
 	// l = clock length counters and sweep units
 	// e = clock envelopes and triangle's linear counter
@@ -2017,7 +2023,7 @@ void Nes::Apu::Tick() {
 void Nes::Apu::EndFrame(uint32 count) {
 #if defined(NES_EXTERNAL_APU)
     if (externalApu) {
-        externalApu->end_frame(count);
+        externalApu->end_frame( count );
 
         blipBuffer->end_frame( count );
     }
@@ -2033,7 +2039,7 @@ void Nes::Apu::EndFrame(uint32 count) {
 void Nes::Apu::WriteControl( uint8 data ) {
 #if defined(NES_EXTERNAL_APU)
     if (externalApu) {
-        externalApu->write_register(frameCycle, 0x4015, data);
+        externalApu->write_register( cpu->frameCycles, 0x4015, data);
         return;
     }
 #else
@@ -2053,7 +2059,7 @@ void Nes::Apu::WriteFrameCounter( uint8 data ) {
 
 #if defined(NES_EXTERNAL_APU)
     if (externalApu) {
-        externalApu->write_register(frameCycle, 0x4017, data);
+        externalApu->write_register( cpu->frameCycles, 0x4017, data);
         return;
     }
 #else
@@ -2073,6 +2079,11 @@ void Nes::Apu::WriteFrameCounter( uint8 data ) {
 }
 
 uint8 Nes::Apu::ReadStatus() {
+#if defined(NES_EXTERNAL_APU)
+    if ( externalApu ) {
+        return externalApu->read_status( cpu->frameCycles );
+    }
+#endif
     uint8 status = (pulse1.lengthCounter > 0 ? 1 : 0) | (pulse1.lengthCounter > 0 ? 2 : 0);
 
     return status;
@@ -2081,9 +2092,7 @@ uint8 Nes::Apu::ReadStatus() {
 uint8 Nes::Apu::CpuRead( uint16 address ) {
     
 #if defined(NES_EXTERNAL_APU)
-    if (externalApu && address == 0x4017) {
-        return externalApu->read_status(frameCycle);
-    }
+    Assert( false );
 #endif
 
     return 0;
@@ -2093,7 +2102,7 @@ void Nes::Apu::CpuWrite( uint16 address, uint8 data ) {
 
 #if defined(NES_EXTERNAL_APU)
     if (externalApu) {
-        externalApu->write_register(frameCycle, address, data);
+        externalApu->write_register( cpu->frameCycles, address, data);
         return;
     }
 
@@ -2377,9 +2386,9 @@ void Nes::Init() {
 }
 
 void Nes::Reset() {
-	apu.Reset();
     cpu.Reset();
     ppu.Reset();
+    apu.Reset();
     controllers.Reset();
 }
 

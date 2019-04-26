@@ -262,10 +262,9 @@ void Nes::Cpu::ExecuteNMI() {
     uint8 p = CompactFlags();
     Push( p );
 
-    PC = MemoryRead(0xFFFA);
     flags.i = 1;
-    PC |= MemoryRead(0xFFFB) << 8;
 
+    PC = MemoryReadWord( kNmiVector );
     nmistate = false;
 }
 
@@ -288,11 +287,9 @@ void Nes::Cpu::ExecuteIRQ() {
     uint8 p = CompactFlags();
     Push( p );
 
-    PC = MemoryRead( 0xFFFE );
     flags.i = 1;
-    PC |= MemoryRead( 0xFFFF ) << 8;
 
-    irqstate = false;
+    PC = MemoryReadWord( kIrqVector );
 }
 
 //////////////////////////////////////////////////////////////////////////

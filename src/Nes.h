@@ -354,8 +354,10 @@ namespace hydra {
             uint8       tempReg;
 
             // Interrupt flags: non maskable interrupt, interrupt request.
-            uint8       nmistate, prevNmistate;
-            uint8       irqstate, prevIrqstate;
+            uint8       nmistate;
+            uint8       irqstate;
+
+            uint8       handleIrq, prevhandleIrq;
 
             static const uint32 kRamSize = 0x800;
 
@@ -389,11 +391,11 @@ namespace hydra {
 
             void        SetNMI();
             void        ClearNMI();
-            void        ExecuteNMI();
 
             void        SetIRQ( uint8 mask );
             void        ClearIRQ( uint8 mask );
-            void        ExecuteIRQ();
+
+            void        HandleInterrupt();
 
 #if defined(NES_SHOW_ASM)
             void        CpuDisassembleInit();
@@ -718,8 +720,8 @@ namespace hydra {
                     OP_PHP();
                     OP_SEI();
                     PC = MemoryReadWord( kIrqVector );
-
-                }                
+                }
+                prevhandleIrq = 0;
             }
 
             // flags

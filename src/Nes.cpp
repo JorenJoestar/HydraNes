@@ -129,14 +129,8 @@ void Nes::Cpu::Step() {
     P = CompactFlags();
     memcpy( &P, &flags, 1 );
 
-    // TODO: this is still something I do not understand how to handle properly.
-    // execute interrupts
-    if(prevNmistate) {
-        nmistate = 0;
-        ExecuteNMI();
-    }
-    else if(prevIrqstate) {
-        ExecuteIRQ();
+    if ( prevhandleIrq ) {
+        HandleInterrupt();
     }
 }
 
@@ -159,7 +153,7 @@ void Nes::Cpu::Reset() {
     opCode = 0;
     opAddress = 0;
 
-    nmistate = prevNmistate = irqstate = prevIrqstate = 0;
+    nmistate = irqstate = 0;
 
     Tick();
     Tick();
@@ -182,8 +176,8 @@ void Nes::Cpu::Tick() {
     // mapper tick
 
     // update interrupts
-    prevNmistate = nmistate;
-    prevIrqstate = flags.i == 0 ? irqstate : 0;
+    prevhandleIrq = handleIrq;
+    handleIrq = nmistate || (flags.i == 0 && irqstate);
 }
 
 uint8 Nes::Cpu::MemoryRead( uint16 address ) {    
@@ -243,21 +237,34 @@ void Nes::Cpu::ClearNMI() {
     nmistate = 0;
 }
 
-void Nes::Cpu::ExecuteNMI() {
-    MemoryRead( PC );
-    MemoryRead( PC );
 
-    Push( (uint8)(PC >> 8));
+void Nes::Cpu::HandleInterrupt() {
+    DummyRead();
+    DummyRead();
+
+    Push( (uint8)( PC >> 8 ) );
     Push( (uint8)PC );
 
-    // Do not use PHP, it always sets the 'b' flag.
-    uint8 p = CompactFlags();
-    Push( p );
+    if ( nmistate ) {
+        // Do not use PHP, it always sets the 'b' flag.
+        uint8 p = CompactFlags();
+        Push( p );
 
-    flags.i = 1;
+        flags.i = 1;
+        // nmi state can be cleared.
+        nmistate = 0;
 
-    PC = MemoryReadWord( kNmiVector );
-    nmistate = false;
+        PC = MemoryReadWord( kNmiVector );
+    }
+    else {
+        // Do not use PHP, it always sets the 'b' flag.
+        uint8 p = CompactFlags();
+        Push( p );
+
+        flags.i = 1;
+
+        PC = MemoryReadWord( kIrqVector );
+    }
 }
 
 void Nes::Cpu::SetIRQ( uint8 mask ) {
@@ -268,21 +275,6 @@ void Nes::Cpu::ClearIRQ( uint8 mask ) {
     irqstate &= ~mask;
 }
 
-void Nes::Cpu::ExecuteIRQ() {
-    MemoryRead( PC );
-    MemoryRead( PC );
-
-    Push( (uint8)(PC >> 8));
-    Push( (uint8)PC );
-
-    // Do not use PHP, it always sets the 'b' flag.
-    uint8 p = CompactFlags();
-    Push( p );
-
-    flags.i = 1;
-
-    PC = MemoryReadWord( kIrqVector );
-}
 
 //////////////////////////////////////////////////////////////////////////
 void Nes::Cart::Init() {

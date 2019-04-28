@@ -1093,7 +1093,6 @@ void Nes::Ppu::Tick() {
 void Nes::Ppu::Reset() {
     pixelCycle = 0;
     scanline = kMaxScanlines - 1; // Start from pre render scanline
-    evenOddFrame = 0;
     frames = 0;
     control = mask = status = 0;
     verticalBlank = verticalBlankOccurred = 0;
@@ -1115,7 +1114,7 @@ void Nes::Ppu::Reset() {
 }
 
 bool Nes::Ppu::IsRendering() {
-    return mask & MaskFlag_EnableRendering ? true : false;
+    return (mask & MaskFlag_EnableRendering) != 0;
 }
 
 uint8 Nes::Ppu::SpriteHeight() {
@@ -1150,6 +1149,27 @@ uint8 Nes::Ppu::CpuRead(uint16 address) {
             verticalBlank = 0;
             // reset write toggle
             w = 0;
+
+            // https://wiki.nesdev.com/w/index.php/PPU_frame_timing
+            // Special behaviour of vertical blank VBL flag when just set (scanline 241)
+            if ( scanline == 241 ) {
+                if ( pixelCycle < 3 ) {
+                    // Reading on the same PPU clock or one later reads it as set, clears it,
+                    // and suppresses the NMI for that frame.Reading two or more PPU clocks
+                    // before / after it's set behaves normally/
+
+                    // Summing up with the behaviour at pixel 0, between pixels 0 and 2 included
+                    // NMI is suppressed.
+                    cpu->ClearNMI();
+                }
+                // Reading one PPU clock before reads it as clear and never sets the flag or generates NMI for that frame.
+                // NOTE: VBL is set at pixel 1 of scanline 241
+                if ( pixelCycle == 0 ) {
+                    // Do not return vertical blank flag.
+                    value = spriteOverflow << 5;
+                    value |= spriteHit << 6;
+                }
+            }
 
             break;
         }
@@ -1199,10 +1219,25 @@ void Nes::Ppu::CpuWrite(uint16 address, uint8 data) {
 
     switch (address & 7) {
         case Ppu::R2000_PPUCTRL: {
-            control = data;
-
             // t: ...BA.. ........ = d: ......BA
             t = (t & 0xF3FF) | ((uint16(data) & 0x03) << 10);
+
+            // https://wiki.nesdev.com/w/index.php/PPU_registers
+            // If the PPU is currently in vertical blank, and the PPUSTATUS ($2002) vblank flag is 
+            // still set (1), changing the NMI flag in bit 7 of $2000 from 0 to 1 will immediately generate an NMI.
+            // Detect if the nmi is just enabled during vblank and generate an NMI.
+            bool previousGenerateNMI = (control & ControlFlag_GenerateNMI) == ControlFlag_GenerateNMI;
+            control = data;
+
+            bool switchingNMIOn = !previousGenerateNMI && (control & ControlFlag_GenerateNMI);
+            bool properTiming = (scanline < 261 || pixelCycle > 0);
+            if ( verticalBlank && switchingNMIOn && properTiming ) {
+                cpu->SetNMI();
+            }
+
+            if ( scanline == 241 && pixelCycle < 3 && !(control & ControlFlag_GenerateNMI) ) {
+                cpu->ClearNMI();
+            }
 
             break;
         }
@@ -1666,20 +1701,19 @@ void Nes::Ppu::Step() {
             case 257: DrawPixel(); ReloadShiftRegisters(); CopyHoriV(); break;
             
             case 1:
-                if ( scanline == 261 ) verticalBlank = 0; break;
-            //case 321: case 339: ReadNameTable(); break;
+                if ( scanline == 261 )
+                    verticalBlank = 0;
+                    break;
 
-            case 338: ReadNameTable(); break;
-            case 340:
-            {
+            case 338:
                 ReadNameTable();
-
-                if ( scanline == 261 && IsRendering() && evenOddFrame ) {
+                if ( scanline == 261 && IsRendering() && (frames & 0x01) ) {
                     ++pixelCycle;
                 }
-
                 break;
-            }
+            case 340:
+                ReadNameTable();
+                break;
         }
 
         const bool copyVerticalVCycle = pixelCycle >= 280 && pixelCycle <= 304;
@@ -1689,7 +1723,7 @@ void Nes::Ppu::Step() {
         }
 
         // PPU A12 pin signaling
-        if ( (mask & MaskFlag_EnableBackground) && (mask & MaskFlag_EnableSprite) ) {
+        if ( IsRendering() ) {
             if ( pixelCycle == 260 ) {
                 memoryController->PpuAddress12Rise();
             }
@@ -1720,8 +1754,8 @@ void Nes::Ppu::IncrementPixelCycle() {
 
         // handle region difference
         if (scanline >= kMaxScanlines) {
+
             scanline = 0;
-            evenOddFrame = !evenOddFrame;
             ++frames;
 
 #if defined(NES_TEST_PPU_CYCLE)

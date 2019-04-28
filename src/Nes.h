@@ -1012,7 +1012,6 @@ namespace hydra {
             uint16                  oamAddress;
             uint16                  scanline, pixelCycle;
             uint32                  frames;
-            uint8                   evenOddFrame;
 
             uint8                   isRendering;
 

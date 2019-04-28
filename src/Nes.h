@@ -706,14 +706,20 @@ namespace hydra {
 
             ForceInline void OP_BRK() {
 
-                MemoryRead( effectiveAddress );
                 Push( (uint8)( PC >> 8 ) );
                 Push( (uint8)PC );
 
-                OP_PHP();
-                PC = MemoryRead( 0xFFFE );
-                OP_SEI();
-                PC |= MemoryRead( 0xFFFF ) << 8;
+                if ( nmistate ) {
+                    OP_PHP();
+                    OP_SEI();
+                    PC = MemoryReadWord( kNmiVector );
+                }
+                else {
+                    OP_PHP();
+                    OP_SEI();
+                    PC = MemoryReadWord( kIrqVector );
+
+                }                
             }
 
             // flags
@@ -912,9 +918,24 @@ namespace hydra {
                 Tick();
             }
 
+            ForceInline void OP_UNK1() {
+                DummyRead();
+            }
+
+            ForceInline void OP_UNK2() {
+                DummyRead();
+                DummyRead();
+            }
+
+            ForceInline void OP_UNK3() {
+                DummyRead();
+                DummyRead();
+                DummyRead();
+            }
+
             ForceInline void OP_UNK() {
-                //PrintFormat( "Opcode %02X not implemented yet.", opCode );
-                Assert( false && "operation not supported!" );
+                //PrintFormat( "Opcode %02X not implemented yet.\n", opCode );
+                //Assert( false && "operation not supported!" );
             }
         }; // struct Cpu
 

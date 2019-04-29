@@ -707,20 +707,21 @@ namespace hydra {
             }
 
             ForceInline void OP_BRK() {
-                Push( (uint8)( (PC + 1)>> 8 ) );
+                
+                Push( (uint8)((PC + 1)>> 8 ) );
                 Push( (uint8)(PC + 1) );
+
+                OP_PHP();
 
                 if ( nmistate ) {
                     nmistate = 0;
-                    OP_PHP();
-                    OP_SEI();
                     PC = MemoryReadWord( kNmiVector );
                 }
                 else {
-                    OP_PHP();
-                    OP_SEI();
                     PC = MemoryReadWord( kIrqVector );
                 }
+                OP_SEI();
+                
                 prevhandleIrq = 0;
             }
 

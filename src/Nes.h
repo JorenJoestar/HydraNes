@@ -708,10 +708,11 @@ namespace hydra {
 
             ForceInline void OP_BRK() {
 
-                Push( (uint8)( PC >> 8 ) );
-                Push( (uint8)PC );
+                Push( (uint8)( (PC +1)>> 8 ) );
+                Push( (uint8)(PC+1) );
 
                 if ( nmistate ) {
+                    nmistate = 0;
                     OP_PHP();
                     OP_SEI();
                     PC = MemoryReadWord( kNmiVector );
@@ -930,6 +931,13 @@ namespace hydra {
             }
 
             ForceInline void OP_UNK3() {
+                DummyRead();
+                DummyRead();
+                DummyRead();
+            }
+
+            ForceInline void OP_UNK4() {
+                DummyRead();
                 DummyRead();
                 DummyRead();
                 DummyRead();

@@ -155,11 +155,9 @@ void Nes::Cpu::Reset() {
 
     nmistate = irqstate = 0;
 
-    Tick();
-    Tick();
-    Tick();
-    Tick();
-    Tick();
+    for ( uint32 i = 0; i < 28; ++i ) {
+        ppu->Tick();
+    }
 
     OP_SEI();
 
@@ -265,6 +263,8 @@ void Nes::Cpu::HandleInterrupt() {
 
         PC = MemoryReadWord( kIrqVector );
     }
+
+    prevhandleIrq = 0;
 }
 
 void Nes::Cpu::SetIRQ( uint8 mask ) {

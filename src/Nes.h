@@ -675,14 +675,14 @@ namespace hydra {
             }
 
             ForceInline void OP_PLP() {
-                MemoryRead( S | 0x100 );
+                DummyRead();
                 uint8 p = Pop();
                 ExpandFlags( p );
             }
 
             ForceInline void OP_JSR() {
                 PC++;
-                MemoryRead( S | 0x100 );
+                DummyRead();
                 Push( (uint8)( PC >> 8 ) );
                 Push( (uint8)PC );
                 PC = MemoryRead( PC ) << 8 | effectiveAddress;
@@ -695,7 +695,7 @@ namespace hydra {
             }
 
             ForceInline void OP_RTS() {
-                MemoryRead( S | 0x100 );
+                DummyRead();
 
                 PC = Pop();
                 PC |= Pop() << 8;
@@ -707,9 +707,8 @@ namespace hydra {
             }
 
             ForceInline void OP_BRK() {
-
-                Push( (uint8)( (PC +1)>> 8 ) );
-                Push( (uint8)(PC+1) );
+                Push( (uint8)( (PC + 1)>> 8 ) );
+                Push( (uint8)(PC + 1) );
 
                 if ( nmistate ) {
                     nmistate = 0;

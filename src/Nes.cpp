@@ -750,6 +750,7 @@ void Nes::Mapper4::PrgWrite( uint16 address, uint8 data ) {
 
             case 0xA001:
             {
+                prgRamWrite = (data >> 7) & 0x1;
                 UpdateBanks();
                 break;
             }

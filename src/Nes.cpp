@@ -399,8 +399,6 @@ uint8 Nes::Mapper0::PrgRead( uint16 address ) {
 void Nes::Mapper0::PrgWrite( uint16 address, uint8 data ) {
     address = (address - Nes::MemoryController::kPrgRomOffsetBank0) & prgAddressMask;
     prg[address] = data;
-    
-    prgRamWrite = true;
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -453,9 +451,8 @@ uint8 Nes::Mapper1::PrgRead( uint16 address ) {
 
 void Nes::Mapper1::PrgWrite( uint16 address, uint8 data ) {
     if ( address < 0x8000 ) {
+        Assert( prgRamWrite );
         prgRam[address - 0x6000] = data;
-
-        prgRamWrite = true;
     }
     else if ( address & 0x8000 ) {
 
@@ -588,6 +585,10 @@ void Nes::Mapper1::UpdateBanks() {
             mirroring = MirrorHorizontal;
             break;
     }
+
+    // PrgRam enabled:
+    // PRG RAM chip enable (0: enabled; 1: disabled; ignored on MMC1A)
+    prgRamWrite = 1 - ((registers[Register_Prg] >> 4) & 0x1);
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -1632,21 +1633,16 @@ void Nes::Ppu::Step() {
     }
 #endif // NES_TEST_PPU_CYCLE
 
-    if ( scanline == 240 && pixelCycle == 340 ) {
-        verticalBlank = 1;
-        currentAT = previousAT = 0;
-
-        if ( control & ControlFlag_GenerateNMI )
-            cpu->SetNMI();
-    }
-    else if ( scanline < 240 || scanline == 261 ) {
-
+    // Standard rendering
+    if ( scanline < 240 || scanline == 261 ) {
+        // Sprite
         switch ( pixelCycle ) {
             case 1: ClearSecondaryOAM(); if ( scanline == 261 ) { spriteOverflow = spriteHit = false; } break;
             case 257: EvaluateSprites(); break;
             case 321: LoadSprites(); break;
         }
 
+        // Tiles
         if ( (pixelCycle > 1) && (pixelCycle < 256) || (pixelCycle > 321 && pixelCycle < 338) ) {
             DrawPixel();
             switch ( pixelCycle % 8 ) {
@@ -1700,10 +1696,20 @@ void Nes::Ppu::Step() {
             }
         }
     }
+
+    // Even/odd frame skipping
     if ( scanline == 261 && IsRendering() && (frames & 0x01) && pixelCycle == 337 ) {
         ++pixelCycle;
     }
 
+    // Vertical blank 
+    if ( scanline == 240 && pixelCycle == 340 ) {
+        verticalBlank = 1;
+        currentAT = previousAT = 0;
+
+        if ( control & ControlFlag_GenerateNMI )
+            cpu->SetNMI();
+    }
     if ( scanline == 261 && pixelCycle == 0 )
         verticalBlank = 0;
 
@@ -1723,12 +1729,6 @@ void Nes::Ppu::IncrementPixelCycle() {
     if (pixelCycle >= kMaxPixels) {
         ++scanline;
         pixelCycle = 0;
-
-#if defined(NES_TEST_PPU_CYCLE)
-        // Change line
-        //if ( debugCycles )
-        //    PrintFormat( "\n" );
-#endif // NES_TEST_PPU_CYCLE
 
         if ( scanline == 240 )
             ++frames;

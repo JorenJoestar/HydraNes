@@ -1617,7 +1617,6 @@ void Nes::Ppu::CopyVertV() {
 
 void Nes::Ppu::Step() {
 
-    
 #if defined(NES_TEST_PPU_CYCLE)
     if ( debugCycles ) {
         
@@ -1633,11 +1632,7 @@ void Nes::Ppu::Step() {
     }
 #endif // NES_TEST_PPU_CYCLE
 
-    if ( scanline == 61 && pixelCycle == 70) {
-        scanline = scanline;
-    }
-
-    if ( scanline == 241 && pixelCycle == 1 ) {
+    if ( scanline == 240 && pixelCycle == 340 ) {
         verticalBlank = 1;
         currentAT = previousAT = 0;
 
@@ -1684,16 +1679,8 @@ void Nes::Ppu::Step() {
             case 256: DrawPixel(); ReadTileHigh(); IncrementVertV(); break;
             case 257: DrawPixel(); ReloadShiftRegisters(); CopyHoriV(); break;
             
-            case 1:
-                if ( scanline == 261 )
-                    verticalBlank = 0;
-                    break;
-
             case 338:
                 ReadNameTable();
-                if ( scanline == 261 && IsRendering() && (frames & 0x01) ) {
-                    ++pixelCycle;
-                }
                 break;
             case 340:
                 ReadNameTable();
@@ -1713,6 +1700,13 @@ void Nes::Ppu::Step() {
             }
         }
     }
+    if ( scanline == 261 && IsRendering() && (frames & 0x01) && pixelCycle == 337 ) {
+        ++pixelCycle;
+    }
+
+    if ( scanline == 261 && pixelCycle == 0 )
+        verticalBlank = 0;
+
 
     IncrementPixelCycle();
 }
@@ -1736,11 +1730,13 @@ void Nes::Ppu::IncrementPixelCycle() {
         //    PrintFormat( "\n" );
 #endif // NES_TEST_PPU_CYCLE
 
+        if ( scanline == 240 )
+            ++frames;
+
         // handle region difference
         if (scanline >= kMaxScanlines) {
 
             scanline = 0;
-            ++frames;
 
 #if defined(NES_TEST_PPU_CYCLE)
             if ( debugFrame ) {

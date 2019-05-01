@@ -342,6 +342,12 @@ namespace hydra {
                 uint8 n : 1;    // negative/sign flag
             };
 
+            enum IRQSource {
+                IRQSource_DMC           = 1,
+                IRQSource_FrameCounter  = 1 << 1,
+                IRQSource_MMC3          = 1 << 2,
+            };
+
             Flags       flags;
 
             uint64      cycles;
@@ -709,7 +715,7 @@ namespace hydra {
             }
 
             ForceInline void OP_BRK() {
-                
+                DummyRead();
                 Push( (uint8)((PC + 1)>> 8 ) );
                 Push( (uint8)(PC + 1) );
 

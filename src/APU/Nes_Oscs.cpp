@@ -248,7 +248,7 @@ void Nes_Dmc::recalc_irq()
 				((length_counter - 1) * 8 + bits_remain - 1) * cpu_time_t (period) + 1;
 	if ( irq != next_irq ) {
 		next_irq = irq;
-		apu->irq_changed();
+		apu->irq_changed( Nes_Apu::IRQSource_DMC, irq_enabled );
 	}
 }
 
@@ -352,7 +352,7 @@ void Nes_Dmc::fill_buffer()
 				apu->osc_enables &= ~0x10;
 				irq_flag = irq_enabled;
 				next_irq = Nes_Apu::no_irq;
-				apu->irq_changed();
+				apu->irq_changed( Nes_Apu::IRQSource_DMC, irq_enabled );
 			}
 		}
 	}

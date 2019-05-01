@@ -77,7 +77,7 @@ public:
 	// Set IRQ time callback that is invoked when the time of earliest IRQ
 	// may have changed, or NULL to disable. When callback is invoked,
 	// 'user_data' is passed unchanged as the first parameter.
-	void irq_notifier( void (*callback)( void* user_data ), void* user_data = NULL );
+	void irq_notifier( void (*callback)( void* user_data, int source, bool value), void* user_data = NULL );
 	
 	// Get time that APU-generated IRQ will occur if no further register reads
 	// or writes occur. If IRQ is already pending, returns irq_waiting. If no
@@ -120,11 +120,16 @@ private:
 	int osc_enables;
 	int frame_mode;
 	bool irq_flag;
-	void (*irq_notifier_)( void* user_data );
+	void (*irq_notifier_)( void* user_data, int source, bool enabled );
 	void* irq_data;
 	Nes_Square::Synth square_synth; // shared by squares
+
+    enum IRQSource {
+        IRQSource_DMC = 0,
+        IRQSource_FrameCounter = 1
+    };
 	
-	void irq_changed();
+	void irq_changed(IRQSource source, bool enabled);
 	void state_restored();
 	
 	friend struct Nes_Dmc;
@@ -147,7 +152,7 @@ inline void Nes_Apu::dmc_reader( int (*func)( void*, cpu_addr_t ), void* user_da
 	dmc.rom_reader = func;
 }
 
-inline void Nes_Apu::irq_notifier( void (*func)( void* user_data ), void* user_data )
+inline void Nes_Apu::irq_notifier( void (*func)( void* user_data, int source, bool value ), void* user_data )
 {
 	irq_notifier_ = func;
 	irq_data = user_data;

@@ -227,7 +227,6 @@ uint8 Nes::Cpu::CompactFlags() {
     return p;
 }
 
-
 void Nes::Cpu::SetNMI() {
     nmistate = 1;
 }
@@ -235,7 +234,6 @@ void Nes::Cpu::SetNMI() {
 void Nes::Cpu::ClearNMI() {
     nmistate = 0;
 }
-
 
 void Nes::Cpu::HandleInterrupt() {
     DummyRead();
@@ -264,8 +262,6 @@ void Nes::Cpu::HandleInterrupt() {
 
         PC = MemoryReadWord( kIrqVector );
     }
-
-    prevhandleIrq = 0;
 }
 
 void Nes::Cpu::SetIRQ( uint8 mask ) {
@@ -452,7 +448,7 @@ uint8 Nes::Mapper1::PrgRead( uint16 address ) {
 
 void Nes::Mapper1::PrgWrite( uint16 address, uint8 data ) {
     if ( address < 0x8000 ) {
-        Assert( prgRamWrite );
+        //Assert( prgRamWrite );
         prgRam[address - 0x6000] = data;
     }
     else if ( address & 0x8000 ) {
@@ -772,7 +768,7 @@ void Nes::Mapper4::PrgWrite( uint16 address, uint8 data ) {
             case 0xE000:
             {
                 irqEnable = 0;
-                cpu->ClearIRQ( 1 );
+                cpu->ClearIRQ( Cpu::IRQSource_MMC3 );
                 break;
             }
 
@@ -794,7 +790,7 @@ void Nes::Mapper4::PpuAddress12Rise() {
     }
 
     if ( irqCounter == 0 && irqEnable ) {
-        cpu->SetIRQ( 1 );
+        cpu->SetIRQ( Cpu::IRQSource_MMC3 );
     }
 
     irqReload = 0;
@@ -1732,7 +1728,7 @@ void Nes::Ppu::IncrementPixelCycle() {
         ++scanline;
         pixelCycle = 0;
 
-        if ( scanline == 240 )
+        if ( scanline == 260 )
             ++frames;
 
         // handle region difference
@@ -2053,6 +2049,8 @@ void Nes::Apu::WriteControl( uint8 data ) {
 #if defined(NES_EXTERNAL_APU)
     if (externalApu) {
         externalApu->write_register( cpu->frameCycles, 0x4015, data);
+        // Writing to this register clears the DMC interrupt flag.
+        cpu->ClearIRQ( Cpu::IRQSource_DMC );
         return;
     }
 #else
@@ -2094,7 +2092,10 @@ void Nes::Apu::WriteFrameCounter( uint8 data ) {
 uint8 Nes::Apu::ReadStatus() {
 #if defined(NES_EXTERNAL_APU)
     if ( externalApu ) {
-        return externalApu->read_status( cpu->frameCycles );
+        uint8 status = externalApu->read_status( cpu->frameCycles );
+        // Reading this register clears the frame interrupt flag (but not the DMC interrupt flag).
+        cpu->ClearIRQ( Cpu::IRQSource_FrameCounter );
+        return status;
     }
 #endif
     uint8 status = (pulse1.lengthCounter > 0 ? 1 : 0) | (pulse1.lengthCounter > 0 ? 2 : 0);
@@ -2376,9 +2377,16 @@ int dmc_read(void* data, cpu_addr_t addr) {
     return nes_dmc->memoryController.CpuRead(addr);
 }
 
-void setIrq(void* data) {
-    Nes* nes_dmc = (Nes*)data;
-    nes_dmc->cpu.SetIRQ(1);
+void setIrq(void* data, int source, bool value) {
+    Nes* nes = (Nes*)data;
+
+    if ( value ) {
+        nes->cpu.SetIRQ( 1 << source );
+    }
+    else {
+        nes->cpu.ClearIRQ( 1 << source );
+    }
+    
 }
 
 void Nes::Init( Options* options ) {

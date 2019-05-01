@@ -112,7 +112,7 @@ void Nes_Apu::reset( bool pal_mode, int initial_dmc_dac )
 		dmc.last_amp = initial_dmc_dac; // prevent output transition
 }
 
-void Nes_Apu::irq_changed()
+void Nes_Apu::irq_changed( IRQSource source, bool enabled )
 {
 	cpu_time_t new_irq = dmc.next_irq;
 	if ( dmc.irq_flag | irq_flag ) {
@@ -125,7 +125,7 @@ void Nes_Apu::irq_changed()
 	if ( new_irq != earliest_irq_ ) {
 		earliest_irq_ = new_irq;
 		if ( irq_notifier_ )
-			irq_notifier_( irq_data );
+			irq_notifier_( irq_data, source, enabled );
 	}
 }
 
@@ -291,7 +291,7 @@ void Nes_Apu::write_register( cpu_time_t time, cpu_addr_t addr, int data )
 		}
 		
 		if ( recalc_irq )
-			irq_changed();
+			irq_changed( IRQSource_DMC, true );
 	}
 	else if ( addr == 0x4017 )
 	{
@@ -315,7 +315,7 @@ void Nes_Apu::write_register( cpu_time_t time, cpu_addr_t addr, int data )
 				next_irq = time + frame_delay + frame_period * 3;
 		}
 		
-		irq_changed();
+		irq_changed( IRQSource_FrameCounter, irq_enabled );
 	}
 }
 
@@ -333,7 +333,7 @@ int Nes_Apu::read_status( cpu_time_t time )
 	
 	if ( irq_flag ) {
 		irq_flag = false;
-		irq_changed();
+		irq_changed( IRQSource_FrameCounter, false );
 	}
 	
 	return result;

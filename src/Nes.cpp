@@ -154,7 +154,7 @@ void Nes::Cpu::Reset() {
     opCode = 0;
     opAddress = 0;
 
-    nmistate = irqstate = 0;
+    nmistate = irqstate = dmaCounterSprite = 0;
 
     for ( uint32 i = 0; i < 28; ++i ) {
         ppu->Tick();
@@ -175,8 +175,10 @@ void Nes::Cpu::Tick() {
     // mapper tick
 
     // update interrupts
-    prevhandleIrq = handleIrq;
-    handleIrq = nmistate || (flags.i == 0 && irqstate);
+    if ( dmaCounterSprite == 0 ) {
+        prevhandleIrq = handleIrq;
+        handleIrq = nmistate || (flags.i == 0 && irqstate);
+    }
 }
 
 uint8 Nes::Cpu::MemoryRead( uint16 address ) {    
@@ -272,6 +274,28 @@ void Nes::Cpu::ClearIRQ( uint8 mask ) {
     irqstate &= ~mask;
 }
 
+void Nes::Cpu::ExecuteSpriteDMA( uint8 offset ) {
+    // https://wiki.nesdev.com/w/index.php/PPU_OAM
+    // Not counting the OAMDMA write tick, the above procedure takes 513 CPU cycles (+1 on odd CPU cycles): 
+    // first one (or two) idle cycles, and then 256 pairs of alternating read/write cycles. 
+    // (For comparison, an unrolled LDA/STA loop would usually take four times as long.)
+
+    // To stall the CPU and avoid interrupts, use this counter.
+    // It is needed also to handle DMC DMA conflicts.
+    dmaCounterSprite = 256;
+
+    DummyRead();
+    if ( cycles & 0x1 ) {
+        DummyRead();
+    }
+
+    for ( int i = 0; i < 256; i++ ) {
+        uint8 v = MemoryRead( offset * 0x100 + i );
+        MemoryWrite( 0x2014, v );
+
+        --dmaCounterSprite;
+    }
+}
 
 //////////////////////////////////////////////////////////////////////////
 void Nes::Cart::Init() {
@@ -968,10 +992,7 @@ void Nes::MemoryController::CpuWrite( uint16 address, uint8 data ) {
     switch ( address ) {
         // Sprite DMA
         case 0x4014: {
-            for ( int i = 0; i < 256; i++ ) {
-                uint8 v = CpuRead( data * 0x100 + i );
-                CpuWrite( 0x2014, v );
-            }
+            cpu->ExecuteSpriteDMA( data );
             return;
             break;
         }

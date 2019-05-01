@@ -367,6 +367,8 @@ namespace hydra {
 
             uint8       handleIrq, prevhandleIrq;
 
+            uint16      dmaCounterSprite;
+
             static const uint32 kRamSize = 0x800;
 
             uint8       ram[kRamSize];
@@ -404,6 +406,8 @@ namespace hydra {
             void        ClearIRQ( uint8 mask );
 
             void        HandleInterrupt();
+
+            void        ExecuteSpriteDMA( uint8 offset );
 
 #if defined(NES_SHOW_ASM)
             void        CpuDisassembleInit();

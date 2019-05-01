@@ -57,7 +57,23 @@ struct Profiler {
         commands::Pop e = { time::Now() };
         events.AddEvent<commands::Pop>( &e );
     }
-};
+}; // struct Profiler
+
+struct Options {
+    enum ZoomType {
+        ZOOM_1X = 0,
+        ZOOM_2X
+    };
+
+    uint16              width;
+    uint16              height;
+    float               masterVolume;
+    std::string         lastOpenedRom;
+    uint32              executeLastRomOnStartup : 1;
+    uint32              zoomType : 2;
+    uint32              muteAudio : 1;
+    uint32              padding : 28;
+}; // struct Options
 
 struct RenderSystemNes;
 struct AudioSystemNes;
@@ -87,6 +103,8 @@ struct MainState : public application::State {
     FileHandle          cpuTestFile;
     TimeStamp           sramSaveTimer;
 
+    Options             emulationOptions;
+
     HINSTANCE           hInstance;
 
     enum SystemOrders {
@@ -114,9 +132,10 @@ struct MainState : public application::State {
     void Terminate( application::TerminateContext& context ) override;
     void Resize( uint16 width, uint16 height ) override;
 
+    void LoadOptions( cstring iniFilename );
+    void SaveOptions( cstring iniFilename );
+
     // Cpu test based on nestest.nes rom and nestest.log.txt file. It does a simple string comparison to check CPU registers and expected values for each step.
     void LoadCpuTest();
     void ExecuteCpuTest();
-
-
 };

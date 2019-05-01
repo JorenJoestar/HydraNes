@@ -180,6 +180,11 @@ void App::MainLoop()
         if ( _setExit )
             break;
     }
+
+    if ( _currentState ) {
+        TerminateContext tc{ &_engine };
+        _currentState->Terminate( tc );
+    }
 }
 
 void App::Resize( uint16 width, uint16 height ) {

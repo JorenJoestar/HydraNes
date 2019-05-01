@@ -1,4 +1,5 @@
 #include "Nes.h"
+#include "Main.h"
 
 #pragma warning(disable:4996)
 
@@ -2380,7 +2381,9 @@ void setIrq(void* data) {
     nes_dmc->cpu.SetIRQ(1);
 }
 
-void Nes::Init() {
+void Nes::Init( Options* options ) {
+
+    this->options = options;
 
     cpu.Init( &ppu, &apu, &memoryController );
     ppu.Init( &cpu, &screen, &memoryController );
@@ -2388,6 +2391,10 @@ void Nes::Init() {
     cart.Init();
     memoryController.Init( &cart, &cpu, &ppu, &controllers, &apu );
     screen.Init();
+
+    screen.zoomFactor = (hydra::Nes::Screen::ZoomFactor)options->zoomType;
+    apu.Mute( options->muteAudio );
+    apu.SetVolume( options->masterVolume );
 
 #if defined(NES_EXTERNAL_APU)
     if ( apu.externalApu ) {

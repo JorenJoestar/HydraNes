@@ -15,6 +15,8 @@
 
 #define NES_EXTERNAL_APU
 
+struct Options;
+
 namespace hydra {
     struct Nes {
 
@@ -1291,7 +1293,7 @@ namespace hydra {
             void     WriteState( uint8 strobe );
         }; // struct Controller
 
-        void        Init();
+        void        Init( Options* options );
         void        Reset();
         void        LoadRom( cstring path );
         void        SaveSRAM();
@@ -1307,7 +1309,9 @@ namespace hydra {
         Cart        cart;
         MemoryController      memoryController;
 
-        int       screenTexture;
+        Options*    options;
+
+        int         screenTexture;
     }; // struct Nes
 
 } // namespace hydra

@@ -18,13 +18,9 @@
 #include <stdlib.h>
 #include <xaudio2.h>
 
-// TODO:
-// - basic rendering
-// - ui
+#include "INIReader.h"
 
 using namespace hydra;
-
-// http://alike.se/yane/
 
 application::App sc;
 
@@ -353,8 +349,15 @@ struct AudioSystemNes : public hydra::UpdateSystem {
 
 
 //////////////////////////////////////////////////////////////////////////
+static cstring kIniFilename = "hydra_nes.ini";
+
+MainState::MainState() : nesui( this, nes ) {
+
+}
 
 void MainState::Init( application::InitContext& context ) {
+
+    LoadOptions( kIniFilename );
 
     simulationType = type_continuous;
     sramSaveTimer = 0;
@@ -365,7 +368,7 @@ void MainState::Init( application::InitContext& context ) {
 
     auto engine = context._engine;
 
-    WindowInit wInit = { nullptr, hInstance, "Hydra", "Hydra", 0, 0, 1800, 1000, &windowEventBlob, false };
+    WindowInit wInit = { nullptr, hInstance, "Hydra", "Hydra", 0, 0, emulationOptions.width, emulationOptions.height, &windowEventBlob, false };
     window = engine->AddUpdate<WindowSystem>( wInit, ord_window );
     window->exitCallbacks.push_back(SetExit);
     window->resizeCallbacks.push_back(ResizeApplication);
@@ -392,132 +395,21 @@ void MainState::Init( application::InitContext& context ) {
     nes.cpu.showAsm = false;
     nes.cpu.testAsm = false;
 #endif
-    nes.Init();
+    nes.Init( &emulationOptions );
 
-    nes.screenTexture = renderer->fbs->rts[0]->handle;
-    
+    nes.screenTexture = renderer->fbs->rts[0]->handle;    
+
     renderer->screenData = nes.screen.frameBuffer;
 
-    nes.LoadRom( "nestest.nes" );
+    if ( emulationOptions.executeLastRomOnStartup && emulationOptions.lastOpenedRom.size() > 4 ) {
+        nes.LoadRom( emulationOptions.lastOpenedRom.c_str() );
+    } else {
+        nes.LoadRom( "nestest.nes" );
+    }
 
     cpuTestMode = false;
     if ( cpuTestMode ) {
         LoadCpuTest();
-    }
-}
-
-void MainState::LoadCpuTest() {
-    cstring filename = "nestest.log.txt";
-    OpenFile( filename, "r", &cpuTestFile );
-
-    if ( !cpuTestFile ) {
-
-        PrintFormat( "Error loading %s\n", filename );
-        fclose( cpuTestFile );
-        cpuTestMode = false;
-
-        return;
-    }
-
-    nes.cpu.testAsm = true;
-    nes.cpu.showAsm = true;
-    nes.cpu.PC = 0xC000;
-}
-
-void MainState::ExecuteCpuTest() {
-
-    char line[512];
-    char buf[8];
-    // Data to test against, coming from the log file.
-    uint8       A, X, Y, S, P;
-    uint16      PC;
-    uint64      cycles;
-    uint16      scanline, pixel;
-
-    while ( fgets( line, sizeof line, cpuTestFile ) != NULL ) {
-
-        char* strPC = line;
-        char* strPCEnd = strPC + 4;
-        buf[0] = line[0]; buf[1] = line[1]; buf[2] = line[2]; buf[3] = line[3]; buf[4] = 0;
-        PC = (uint16)strtoul( strPC, &strPCEnd, 16 );
-
-        if ( PC != nes.cpu.PC ) {
-            Assert( false && "Error!" );
-        }
-
-        char* strA = strstr( line, "A:" );
-        buf[0] = strA[2]; buf[1] = strA[3]; buf[2] = 0;
-        A = (uint8)strtoul( buf, nullptr, 16 );
-
-
-        if ( A != nes.cpu.A ) {
-            Assert( false && "Error!" );
-        }
-
-        char* strX = strstr( line, "X:" );
-        buf[0] = strX[2]; buf[1] = strX[3]; buf[2] = 0;
-        X = (uint8)strtoul( buf, nullptr, 16 );
-
-        if ( X != nes.cpu.X ) {
-            Assert( false && "Error!" );
-        }
-
-
-        char* strY = strstr( line, "Y:" );
-        buf[0] = strY[2]; buf[1] = strY[3]; buf[2] = 0;
-        Y = (uint8)strtoul( buf, nullptr, 16 );
-
-
-        if ( Y != nes.cpu.Y ) {
-            Assert( false && "Error!" );
-        }
-
-
-        char* strP = strstr( line, "P:" );
-        buf[0] = strP[2]; buf[1] = strP[3]; buf[2] = 0;
-        P = (uint8)strtoul( buf, nullptr, 16 );
-
-
-        if ( P != nes.cpu.P ) {
-            Assert( false && "Error!" );
-        }
-
-
-        char* strSP = strstr( line, "SP:" );
-        buf[0] = strSP[3]; buf[1] = strSP[4]; buf[2] = 0;
-        S = (uint8)strtoul( buf, nullptr, 16 );
-
-        if ( S != nes.cpu.S ) {
-            Assert( false && "Error!" );
-        }
-
-        char* strPPU = strstr( line, "PPU:" );
-        char* strPPUComma = strstr( strPPU, "," );
-
-        pixel = (uint16)strtoul( strPPU + 4, &strPPUComma, 10 );
-
-        char* strCYC = strstr( line, "CYC:" );
-        cycles = (uint64)strtoul( strCYC + 4, nullptr, 10 );
-
-        scanline = (uint16)strtoul( strPPUComma + 1, &strCYC, 10 );
-
-        //if ( scanline != nes.ppu.scanline ) {
-        //    Assert( false && "Error!" );
-        //}
-
-        if ( pixel != nes.ppu.pixelCycle ) {
-            Assert( false && "Error!" );
-        }
-
-        if ( cycles != nes.cpu.cycles ) {
-            Assert( false && "Error!" );
-        }
-
-
-        nes.cpu.Step();
-
-        // Read nes state from file and compare to the actual state.
-        // C000  4C F5 C5  JMP $C5F5                       A:00 X:00 Y:00 P:24 SP:FD PPU:  0,  0 CYC:7
     }
 }
 
@@ -630,14 +522,182 @@ void MainState::Terminate( application::TerminateContext& context ) {
     ImGuiTerminate( renderer->device );
 
     context._engine->TerminateSystems();
+
+    SaveOptions( kIniFilename );
 }
 
 void MainState::Resize( uint16 width, uint16 height ) {
 
 }
 
-MainState::MainState() : nesui( this, nes ) {
+void MainState::LoadOptions( cstring ini_filename ) {
+    FileHandle ini_file;
+    OpenFile( ini_filename, "rb", &ini_file );
+    if ( !ini_file ) {
 
+        // If not existing, create it and set defaults.
+        emulationOptions.width = 1800;
+        emulationOptions.height = 1000;
+        emulationOptions.lastOpenedRom = "";
+        emulationOptions.executeLastRomOnStartup = 0;
+        emulationOptions.zoomType = Options::ZOOM_1X;
+        emulationOptions.muteAudio = 0;
+        emulationOptions.masterVolume = 0.666f;
+        SaveOptions( ini_filename );
+
+        return;
+    }
+
+    INIReader reader( ini_file );
+    emulationOptions.width = (uint16)reader.GetInteger( "Window", "window_width", 1024 );
+    emulationOptions.height = (uint16)reader.GetInteger( "Window", "window_height", 768 );
+    emulationOptions.lastOpenedRom = reader.Get( "Emulation", "last_rom_file", "" );
+    emulationOptions.executeLastRomOnStartup = reader.GetInteger( "Emulation", "emulation_rom_startup", 0 );
+    emulationOptions.zoomType = reader.GetInteger( "Graphics", "graphics_zoom", 0 );
+    emulationOptions.muteAudio = reader.GetInteger( "Audio", "audio_mute", 0 );
+    emulationOptions.masterVolume = (float)reader.GetReal( "Audio", "audio_master_volume", 0.666f );
+    fclose( ini_file );
+}
+
+void MainState::SaveOptions( cstring ini_filename ) {
+    FileHandle ini_file;
+    OpenFile( ini_filename, "wb", &ini_file );
+    if ( !ini_file ) {
+        PrintFormat( "Error creating configuration file %s. Cannot save settings.\n", ini_filename );
+        return;
+    }
+
+    emulationOptions.zoomType = (uint8)nes.screen.zoomFactor;
+    emulationOptions.muteAudio = nes.apu.mute ? 1 : 0;
+    emulationOptions.masterVolume = nes.apu.volume;
+    emulationOptions.lastOpenedRom = nes.cart.filename;
+
+    fprintf_s( ini_file, "[Window]\n" );
+    fprintf_s( ini_file, "window_width=%u\n", emulationOptions.width );
+    fprintf_s( ini_file, "window_height=%u\n", emulationOptions.height );
+    fprintf_s( ini_file, "[Graphics]\n" );
+    fprintf_s( ini_file, "graphics_zoom=%u\n", emulationOptions.zoomType );
+    fprintf_s( ini_file, "[Emulation]\n" );
+    fprintf_s( ini_file, "emulation_rom_startup=%u\n", emulationOptions.executeLastRomOnStartup );
+    fprintf_s( ini_file, "last_rom_file=%s\n", emulationOptions.lastOpenedRom.c_str() );
+    fprintf_s( ini_file, "[Audio]\n" );
+    fprintf_s( ini_file, "audio_mute=%u\n", emulationOptions.muteAudio );
+    fprintf_s( ini_file, "audio_master_volume=%f\n", emulationOptions.masterVolume );
+    fclose( ini_file );
+}
+
+void MainState::LoadCpuTest() {
+    cstring filename = "nestest.log.txt";
+    OpenFile( filename, "r", &cpuTestFile );
+
+    if ( !cpuTestFile ) {
+
+        PrintFormat( "Error loading %s\n", filename );
+        fclose( cpuTestFile );
+        cpuTestMode = false;
+
+        return;
+    }
+
+    nes.cpu.testAsm = true;
+    nes.cpu.showAsm = true;
+    nes.cpu.PC = 0xC000;
+}
+
+void MainState::ExecuteCpuTest() {
+
+    char line[512];
+    char buf[8];
+    // Data to test against, coming from the log file.
+    uint8       A, X, Y, S, P;
+    uint16      PC;
+    uint64      cycles;
+    uint16      scanline, pixel;
+
+    while ( fgets( line, sizeof line, cpuTestFile ) != NULL ) {
+
+        char* strPC = line;
+        char* strPCEnd = strPC + 4;
+        buf[0] = line[0]; buf[1] = line[1]; buf[2] = line[2]; buf[3] = line[3]; buf[4] = 0;
+        PC = (uint16)strtoul( strPC, &strPCEnd, 16 );
+
+        if ( PC != nes.cpu.PC ) {
+            Assert( false && "Error!" );
+        }
+
+        char* strA = strstr( line, "A:" );
+        buf[0] = strA[2]; buf[1] = strA[3]; buf[2] = 0;
+        A = (uint8)strtoul( buf, nullptr, 16 );
+
+
+        if ( A != nes.cpu.A ) {
+            Assert( false && "Error!" );
+        }
+
+        char* strX = strstr( line, "X:" );
+        buf[0] = strX[2]; buf[1] = strX[3]; buf[2] = 0;
+        X = (uint8)strtoul( buf, nullptr, 16 );
+
+        if ( X != nes.cpu.X ) {
+            Assert( false && "Error!" );
+        }
+
+
+        char* strY = strstr( line, "Y:" );
+        buf[0] = strY[2]; buf[1] = strY[3]; buf[2] = 0;
+        Y = (uint8)strtoul( buf, nullptr, 16 );
+
+
+        if ( Y != nes.cpu.Y ) {
+            Assert( false && "Error!" );
+        }
+
+
+        char* strP = strstr( line, "P:" );
+        buf[0] = strP[2]; buf[1] = strP[3]; buf[2] = 0;
+        P = (uint8)strtoul( buf, nullptr, 16 );
+
+
+        if ( P != nes.cpu.P ) {
+            Assert( false && "Error!" );
+        }
+
+
+        char* strSP = strstr( line, "SP:" );
+        buf[0] = strSP[3]; buf[1] = strSP[4]; buf[2] = 0;
+        S = (uint8)strtoul( buf, nullptr, 16 );
+
+        if ( S != nes.cpu.S ) {
+            Assert( false && "Error!" );
+        }
+
+        char* strPPU = strstr( line, "PPU:" );
+        char* strPPUComma = strstr( strPPU, "," );
+
+        pixel = (uint16)strtoul( strPPU + 4, &strPPUComma, 10 );
+
+        char* strCYC = strstr( line, "CYC:" );
+        cycles = (uint64)strtoul( strCYC + 4, nullptr, 10 );
+
+        scanline = (uint16)strtoul( strPPUComma + 1, &strCYC, 10 );
+
+        //if ( scanline != nes.ppu.scanline ) {
+        //    Assert( false && "Error!" );
+        //}
+
+        if ( pixel != nes.ppu.pixelCycle ) {
+            Assert( false && "Error!" );
+        }
+
+        if ( cycles != nes.cpu.cycles ) {
+            Assert( false && "Error!" );
+        }
+
+        nes.cpu.Step();
+
+        // Read nes state from file and compare to the actual state.
+        // C000  4C F5 C5  JMP $C5F5                       A:00 X:00 Y:00 P:24 SP:FD PPU:  0,  0 CYC:7
+    }
 }
 
 //////////////////////////////////////////////////////////////////////////

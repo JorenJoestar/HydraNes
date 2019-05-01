@@ -242,7 +242,14 @@ LRESULT CALLBACK WndProc( HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam ) {
         }
 
         case WM_SIZE: {
-            window->isResizing = true;
+            //https://msdn.microsoft.com/en-us/library/windows/desktop/ms632646(v=vs.85).aspx
+            // TODO: proper way of handling resize!
+            int32 newWidth = LOWORD( lParam );
+            int32 newHeight = HIWORD( lParam );
+            window::events::Resize event{ (uint16)newWidth, (uint16)newHeight };
+            window->_eventStream.AddEvent( &event );
+
+            window->isResizing = false;
 
             break;
         }
@@ -270,17 +277,6 @@ LRESULT CALLBACK WndProc( HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam ) {
 
         case WM_LBUTTONUP:
             SetMouseState( lParam, false, hydra::input::MouseButtons::Left, *window );
-
-            if ( window->isResizing ) {
-                //https://msdn.microsoft.com/en-us/library/windows/desktop/ms632646(v=vs.85).aspx
-                // TODO: proper way of handling resize!
-                int32 newWidth = LOWORD( lParam );
-                int32 newHeight = HIWORD( lParam );
-                window::events::Resize event{ (uint16)newWidth, (uint16)newHeight };
-                window->_eventStream.AddEvent( &event );
-
-                window->isResizing = false;
-            }
             break;
 
         case WM_MBUTTONUP:

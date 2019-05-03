@@ -288,6 +288,9 @@ void NesUI::DrawCartridge() {
     ImGui::Text( "Prg Ram Pages (8Kb): %d", nes.cart.romHeader.prgRamPages );
     ImGui::Text( "Mapper Index %u", nes.cart.mapperIndex );
 
+    ImGui::Separator();
+    ImGui::Checkbox( "Execute on startup last executed rom.", &executeOnStartup );
+
     ImGui::End();
 
     if ( changedDirectory ) {

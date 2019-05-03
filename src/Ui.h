@@ -62,6 +62,7 @@ namespace hydra {
         bool            opened = false;
         bool            mouseDebug = false;
         bool            apuOpened = false;
+        bool            executeOnStartup = false;
 
         int             debugPixel[2] = { -1, -1 };
 

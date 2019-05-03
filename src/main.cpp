@@ -359,7 +359,6 @@ void MainState::Init( application::InitContext& context ) {
 
     LoadOptions( kIniFilename );
 
-    simulationType = type_continuous;
     sramSaveTimer = 0;
 
     currentProfiler = &profiler[0];
@@ -401,11 +400,14 @@ void MainState::Init( application::InitContext& context ) {
 
     renderer->screenData = nes.screen.frameBuffer;
 
-    if ( emulationOptions.executeLastRomOnStartup && emulationOptions.lastOpenedRom.size() > 4 ) {
+    if ( emulationOptions.lastOpenedRom.size() > 4 ) {
         nes.LoadRom( emulationOptions.lastOpenedRom.c_str() );
-    } else {
+    } 
+    else {
         nes.LoadRom( "nestest.nes" );
     }
+
+    simulationType = emulationOptions.executeLastRomOnStartup ? type_continuous : type_step;
 
     cpuTestMode = false;
     if ( cpuTestMode ) {
@@ -571,6 +573,7 @@ void MainState::SaveOptions( cstring ini_filename ) {
     emulationOptions.muteAudio = nes.apu.mute ? 1 : 0;
     emulationOptions.masterVolume = nes.apu.volume;
     emulationOptions.lastOpenedRom = nes.cart.filename;
+    emulationOptions.executeLastRomOnStartup = nesui.executeOnStartup;
 
     fprintf_s( ini_file, "[Window]\n" );
     fprintf_s( ini_file, "window_width=%u\n", emulationOptions.width );

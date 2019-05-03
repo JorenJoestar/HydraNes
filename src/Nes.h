@@ -374,9 +374,6 @@ namespace hydra {
             uint8       opCode;
 
             uint16      effectiveAddress;
-            uint16      tempAddress;
-            uint16      tempReg16;
-            uint8       tempReg;
 
             // Interrupt flags: non maskable interrupt, interrupt request.
             uint8       nmistate;
@@ -471,11 +468,10 @@ namespace hydra {
 
             // Absolute x addressing READ
             ForceInline uint16 AM_AXR() {
-                uint16 effectiveAddress = AM_ABS();
+                const uint16 effectiveAddress = AM_ABS();
                 
                 if ( CheckCrossPage( effectiveAddress, X ) ) {
-                    uint16 tempReg16 = ( effectiveAddress & 0xFF ) + X;
-                    DummyRead( ( effectiveAddress & 0xFF00 ) | (uint8)tempReg16 );
+                    DummyRead();
                 }
 
                 return effectiveAddress + X;
@@ -483,32 +479,29 @@ namespace hydra {
 
             // Absolute x addressing WRITE
             ForceInline uint16 AM_AXW() {
-                uint16 effectiveAddress = AM_ABS();
+                const uint16 effectiveAddress = AM_ABS();
 
-                uint16 tempReg16 = ( effectiveAddress & 0xFF ) + X;
-                DummyRead( ( effectiveAddress & 0xFF00 ) | (uint8)tempReg16 );
+                DummyRead();
 
                 return effectiveAddress + X;
             }
 
             // Absolute y addressing READ
             ForceInline uint16 AM_AYR() {
-                uint16 effectiveAddress = AM_ABS();
+                const uint16 effectiveAddress = AM_ABS();
 
                 if ( CheckCrossPage( effectiveAddress, Y ) ) {
-                    uint16 tempReg16 = ( effectiveAddress & 0xFF ) + Y;
-                    DummyRead( ( effectiveAddress & 0xFF00 ) | (uint8)tempReg16 );
+                    DummyRead();
                 }
                 return effectiveAddress + Y;
             }
 
             // Absolute y addressing WRITE
             ForceInline uint16 AM_AYW() {
-                uint16 effectiveAddress = AM_ABS();
-
-                uint16 tempReg16 = ( effectiveAddress & 0xFF ) + Y;
-                DummyRead( ( effectiveAddress & 0xFF00 ) | (uint8)tempReg16 );
-
+                const uint16 effectiveAddress = AM_ABS();
+                
+                DummyRead();
+                
                 return effectiveAddress + Y;
             }
 
@@ -519,15 +512,15 @@ namespace hydra {
 
             // Zero page X
             ForceInline uint16 AM_ZPX() {
-                uint16 effectiveAddress = AM_ZPG();
-                DummyRead( effectiveAddress );
+                const uint16 effectiveAddress = AM_ZPG();
+                DummyRead();
                 return ( effectiveAddress + X ) & 0xFF;
             }
 
             // Zero page Y
             ForceInline uint16 AM_ZPY() {
-                uint16 effectiveAddress = AM_ZPG();
-                DummyRead( effectiveAddress );
+                const uint16 effectiveAddress = AM_ZPG();
+                DummyRead();
                 return ( effectiveAddress + Y ) & 0xFF;
             }
 
@@ -558,8 +551,7 @@ namespace hydra {
                 uint8 tempReg = MemoryRead( PC++ );
                 uint16 effectiveAddress = MemoryRead( tempReg++ );
                 effectiveAddress |= MemoryRead( tempReg ) << 8;
-                uint16 tempReg16 = ( effectiveAddress & 0xFF ) + Y;
-                MemoryRead( ( effectiveAddress & 0xFF00 ) | (uint8)tempReg16 );
+                DummyRead();
                 effectiveAddress += Y;
 
                 return effectiveAddress;
@@ -570,9 +562,8 @@ namespace hydra {
                 uint8 tempReg = MemoryRead( PC++ );
                 uint16 effectiveAddress = MemoryRead( tempReg++ );
                 effectiveAddress |= MemoryRead( tempReg ) << 8;
-                uint16 tempReg16 = ( effectiveAddress & 0xFF ) + Y;
                 if ( CheckCrossPage( effectiveAddress, Y ) ) {
-                    DummyRead( ( effectiveAddress & 0xFF00 ) | (uint8)tempReg16 );
+                    DummyRead();
                 }
                 effectiveAddress += Y;
 
@@ -617,26 +608,26 @@ namespace hydra {
 
             // comparison
             ForceInline void OP_BIT() {
-                tempReg = MemoryRead( effectiveAddress );
+                const uint8 tempReg = MemoryRead( effectiveAddress );
                 P.flags.v = ( tempReg >> 6 ) & 1;
                 P.flags.n = ( tempReg >> 7 ) & 1;
                 P.flags.z = ( A & tempReg ) ? 0 : 1;
             }
 
             ForceInline void OP_CMP() {
-                tempReg16 = A - MemoryRead( effectiveAddress );
+                const uint16 tempReg16 = A - MemoryRead( effectiveAddress );
                 P.flags.c = !( tempReg16 & 0x100 );
                 SetZeroOrNegativeFlags( (uint8)tempReg16 );
             }
 
             ForceInline void OP_CPX() {
-                tempReg16 = X - MemoryRead( effectiveAddress );
+                const uint16 tempReg16 = X - MemoryRead( effectiveAddress );
                 P.flags.c = !( tempReg16 & 0x100 );
                 SetZeroOrNegativeFlags( (uint8)tempReg16 );
             }
 
             ForceInline void OP_CPY() {
-                tempReg16 = Y - MemoryRead( effectiveAddress );
+                const uint16 tempReg16 = Y - MemoryRead( effectiveAddress );
                 P.flags.c = !( tempReg16 & 0x100 );
                 SetZeroOrNegativeFlags( (uint8)tempReg16 );
             }
@@ -645,12 +636,11 @@ namespace hydra {
             ForceInline void OP_BRANCH( uint8 flag ) {
                 if ( !flag )
                     return;
-                // Dummy read
-                MemoryRead( PC );
-                tempAddress = PC + (int8)effectiveAddress;
+
+                DummyRead();
+                const uint16 tempAddress = PC + (int8)effectiveAddress;
                 if ( CheckCrossPage( PC, (int8)effectiveAddress ) ) {
-                    // Dymmy read
-                    MemoryRead( ( PC & 0xFF00 ) | ( tempAddress & 0xFF ) );
+                    DummyRead();
                 }
                 PC = tempAddress;
             }
@@ -833,14 +823,14 @@ namespace hydra {
             }
 
             ForceInline void OP_DEC() {
-                tempReg = MemoryRead( effectiveAddress );
+                uint8 tempReg = MemoryRead( effectiveAddress );
                 MemoryWrite( effectiveAddress, tempReg-- );
                 MemoryWrite( effectiveAddress, tempReg );
                 SetZeroOrNegativeFlags( tempReg );
             }
 
             ForceInline void OP_INC() {
-                tempReg = MemoryRead( effectiveAddress );
+                uint8 tempReg = MemoryRead( effectiveAddress );
                 MemoryWrite( effectiveAddress, tempReg++ );
                 MemoryWrite( effectiveAddress, tempReg );
                 SetZeroOrNegativeFlags( tempReg );
@@ -863,7 +853,7 @@ namespace hydra {
             }
 
             ForceInline void OP_ASL() {
-                tempReg = MemoryRead( effectiveAddress );
+                uint8 tempReg = MemoryRead( effectiveAddress );
                 MemoryWrite( effectiveAddress, tempReg );
                 P.flags.c = ( tempReg >> 7 ) & 1;
                 tempReg <<= 1;
@@ -878,7 +868,7 @@ namespace hydra {
             }
 
             ForceInline void OP_ROL() {
-                tempReg = MemoryRead( effectiveAddress );
+                uint8 tempReg = MemoryRead( effectiveAddress );
                 MemoryWrite( effectiveAddress, tempReg );
                 uint8 tmp8 = P.flags.c;
                 P.flags.c = ( tempReg >> 7 ) & 1;
@@ -888,14 +878,14 @@ namespace hydra {
             }
 
             ForceInline void OP_ROLA() {
-                tempReg = P.flags.c;
+                const uint8 tempReg = P.flags.c;
                 P.flags.c = ( A >> 7 ) & 1;
                 A = ( A << 1 ) | tempReg;
                 SetZeroOrNegativeFlags( A );
             }
 
             ForceInline void OP_ROR() {
-                tempReg = MemoryRead( effectiveAddress );
+                uint8 tempReg = MemoryRead( effectiveAddress );
                 MemoryWrite( effectiveAddress, tempReg );
                 uint8 tmp8 = P.flags.c;
                 P.flags.c = tempReg & 1;
@@ -905,14 +895,14 @@ namespace hydra {
             }
 
             ForceInline void OP_RORA() {
-                tempReg = P.flags.c;
+                const uint8 tempReg = P.flags.c;
                 P.flags.c = A & 1;
                 A = ( A >> 1 ) | ( tempReg << 7 );
                 SetZeroOrNegativeFlags( A );
             }
 
             ForceInline void OP_LSR() {
-                tempReg = MemoryRead( effectiveAddress );
+                uint8 tempReg = MemoryRead( effectiveAddress );
                 MemoryWrite( effectiveAddress, tempReg );
                 P.flags.c = tempReg & 1;
                 tempReg >>= 1;
@@ -927,7 +917,7 @@ namespace hydra {
             }
 
             ForceInline void OP_ADC() {
-                tempReg = MemoryRead( effectiveAddress );
+                const uint8 tempReg = MemoryRead( effectiveAddress );
                 int16 tmpi = A + tempReg + P.flags.c;
                 P.flags.c = ( tmpi & 0xFF00 ) ? 1 : 0;
                 P.flags.v = ( ( ( A ^ tmpi ) & ( tempReg ^ tmpi ) ) & 0x80 ) ? 1 : 0;
@@ -936,7 +926,7 @@ namespace hydra {
             }
 
             ForceInline void OP_SBC() {
-                tempReg = MemoryRead( effectiveAddress );
+                const uint8 tempReg = MemoryRead( effectiveAddress );
                 int16 tmpi = A - tempReg - ( 1 - P.flags.c );
                 P.flags.c = ( ( tmpi & 0xFF00 ) == 0 ) ? 1 : 0;
                 P.flags.v = ( ( ( A ^ tempReg ) & ( A ^ tmpi ) ) & 0x80 ) ? 1 : 0;

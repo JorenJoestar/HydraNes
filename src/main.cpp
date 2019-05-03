@@ -211,6 +211,8 @@ struct RenderSystemNes : public hydra::gfx::RenderSystem {
         glBindTexture(GL_TEXTURE_2D, screenTex->handle);
         glActiveTexture(GL_TEXTURE0);
         glUniform1i(textureLocationFrameBuffer, 0);
+        glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST );
+        glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST );
 
         glDrawArrays( GL_TRIANGLES, 0, 3 );
 

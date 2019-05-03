@@ -165,7 +165,7 @@ void Nes::Cpu::Tick() {
     ++frameCycles;
 
     ppu->Tick();
-    //apu->Tick();
+    apu->Tick();
     // mapper tick
 
     // update interrupts
@@ -1832,7 +1832,7 @@ void Nes::Apu::Reset() {
 void Nes::Apu::Tick() {
 #if defined (NES_EXTERNAL_APU)
     if ( externalApu ) {
-        externalApu->run_until( cpu->frameCycles - 1 );
+        externalApu->run_until( cpu->frameCycles );
     }
 #else
 	// f = set interrupt flag

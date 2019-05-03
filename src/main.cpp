@@ -228,7 +228,7 @@ struct RenderSystemNes : public hydra::gfx::RenderSystem {
 class VoiceCallback : public IXAudio2VoiceCallback {
 public:
 
-    static const uint32 kBufferSize = 128;
+    static const uint32 kBufferSize = 1024;
 
     HANDLE      hBufferEndEvent;
     Nes*        nes;
@@ -284,8 +284,11 @@ struct AudioSystemNes : public hydra::UpdateSystem {
     const int SAMPLE_RATE = 44100;
     const int VOICE_SAMPLES = SAMPLE_RATE * CHANNELS;
 
-    static const uint32 kBufferSize = 512;
-    int16 samples[kBufferSize];
+    // Triple buffered samples.
+    static const uint32 kBufferSize = 32000;
+    static const uint32 kBufferCount = 3;
+    int16* samples;
+    uint8 bufferIndex;
 
     AudioSystemNes(Nes* nes, uint32 order) : hydra::UpdateSystem(order), nes(nes) {
     }
@@ -303,6 +306,9 @@ struct AudioSystemNes : public hydra::UpdateSystem {
         IXAudio2MasteringVoice *masteringVoice;
         if ( FAILED( result = xAudio->CreateMasteringVoice( &masteringVoice ) ) )
             return;
+
+        samples = new int16[kBufferCount * kBufferSize];
+        bufferIndex = 0;
 
         WAVEFORMATEX waveFormat = { 0 };
         waveFormat.wBitsPerSample = SAMPLE_BITS;
@@ -324,24 +330,34 @@ struct AudioSystemNes : public hydra::UpdateSystem {
     }
 
     void Terminate() override {
+
+        delete[] samples;
+
         CoUninitialize();
     }
 
     void Update() override {
         XAUDIO2_VOICE_STATE voiceState;
         sourceVoice->GetState( &voiceState );
-        if ( voiceState.BuffersQueued < 1 ) {
-            if ( nes->apu.blipBuffer->samples_avail() > kBufferSize ) {
+        //if ( voiceState.BuffersQueued < 1 )
+        {
+            const int32 availableSamples = nes->apu.blipBuffer->samples_avail();
+            if ( availableSamples ) {
+                int16* bufferAddress = &samples[kBufferSize * bufferIndex];
+                const int32 readSamples = nes->apu.blipBuffer->read_samples( bufferAddress, kBufferSize, false );
                 
-                int32 readSamples = nes->apu.blipBuffer->read_samples( samples, kBufferSize, false );
+                bufferIndex = (bufferIndex + 1) % kBufferCount;
 
                 XAUDIO2_BUFFER buffer = { 0 };
                 buffer.AudioBytes = readSamples * (SAMPLE_BITS / 8);
                 buffer.LoopCount = 0;
-                buffer.pAudioData = (BYTE *)&samples;
+                buffer.pAudioData = (BYTE *)bufferAddress;
                 buffer.Flags = voiceState.BuffersQueued == 0 ? XAUDIO2_END_OF_STREAM : 0;
 
-                (FAILED( sourceVoice->SubmitSourceBuffer( &buffer ) ));
+                FAILED( sourceVoice->SubmitSourceBuffer( &buffer ) );
+                if ( availableSamples >= kBufferSize ) {
+                    PrintFormat( "Audio buffer size is small! Need %u but has %u samples!\n", availableSamples, kBufferSize );
+                }
             }
         }
     }

@@ -127,9 +127,6 @@ void Nes::Cpu::Step() {
             Assert( false && "operation not supported!");
     }
 
-    P = CompactFlags();
-    memcpy( &P, &flags, 1 );
-
     if ( prevhandleIrq ) {
         HandleInterrupt();
     }
@@ -145,9 +142,8 @@ void Nes::Cpu::Init( Ppu* ppu, Apu* apu, MemoryController* memoryController ) {
 void Nes::Cpu::Reset() {
     A = X = Y = 0;
     S = 0xFD;
-    P = 0x24;
+    P.data = 0x24;
     PC = 0;
-    memset( &flags, 0x24, 1 );
     memset( &ram, 0xFF, kRamSize );
 
     cycles = frameCycles = 0;
@@ -159,8 +155,6 @@ void Nes::Cpu::Reset() {
     for ( uint32 i = 0; i < 28; ++i ) {
         ppu->Tick();
     }
-
-    OP_SEI();
 
     PC = MemoryReadWord( kResetVector );
 }
@@ -177,7 +171,7 @@ void Nes::Cpu::Tick() {
     // update interrupts
     if ( dmaCounterSprite == 0 ) {
         prevhandleIrq = handleIrq;
-        handleIrq = nmistate || (flags.i == 0 && irqstate);
+        handleIrq = nmistate || (P.flags.i == 0 && irqstate);
     }
 }
 
@@ -204,29 +198,18 @@ uint8 Nes::Cpu::Pop() {
 }
 
 void Nes::Cpu::SetZeroOrNegativeFlags( uint8 value ) {
-    flags.n = ( value >> 7 ) & 1;
-    flags.z = value == 0 ? 1 : 0;
+    P.flags.n = ( value >> 7 ) & 1;
+    P.flags.z = value == 0 ? 1 : 0;
 }
 
-void Nes::Cpu::ExpandFlags( uint8 value ) {
-    flags.c = ( value & 0x01 ) >> 0;
-    flags.z = ( value & 0x02 ) >> 1;
-    flags.i = ( value & 0x04 ) >> 2;
-    flags.d = ( value & 0x08 ) >> 3;
-    flags.v = ( value & 0x40 ) >> 6;
-    flags.n = ( value & 0x80 ) >> 7;
+void Nes::Cpu::SetPS( uint8 value ) {
+    // http://wiki.nesdev.com/w/index.php/Status_flags
+    // Always ignore bit 4 and 5.
+    P.data = value & kPSMask;
 }
 
-uint8 Nes::Cpu::CompactFlags() {
-    uint8 p = 0x20;
-    p |= ( flags.c ) << 0;
-    p |= ( flags.z ) << 1;
-    p |= ( flags.i ) << 2;
-    p |= ( flags.d ) << 3;
-    p |= ( flags.v ) << 6;
-    p |= ( flags.n ) << 7;
-
-    return p;
+uint8 Nes::Cpu::GetPS() {
+    return P.data;
 }
 
 void Nes::Cpu::SetNMI() {
@@ -244,23 +227,20 @@ void Nes::Cpu::HandleInterrupt() {
     Push( (uint8)( PC >> 8 ) );
     Push( (uint8)PC );
 
+    // Two interrupts (/IRQ and /NMI) and two instructions (PHP and BRK) push the flags to the stack. 
+    // In the byte pushed, bit 5 is always set to 1, and bit 4 is 1 if from an instruction (PHP or BRK) or 0 
+    // if from an interrupt line being pulled low (/IRQ or /NMI). This is the only time and place where the B flag 
+    // actually exists: not in the status register itself, but in bit 4 of the copy that is written to the stack.
+    Push( GetPS() | PS::FlagsBit_Reserved );
     if ( nmistate ) {
-        // Do not use PHP, it always sets the 'b' flag.
-        uint8 p = CompactFlags();
-        Push( p );
-
-        flags.i = 1;
+        P.flags.i = 1;
         // nmi state can be cleared.
         nmistate = 0;
 
         PC = MemoryReadWord( kNmiVector );
     }
     else {
-        // Do not use PHP, it always sets the 'b' flag.
-        uint8 p = CompactFlags();
-        Push( p );
-
-        flags.i = 1;
+        P.flags.i = 1;
 
         PC = MemoryReadWord( kIrqVector );
     }
@@ -2601,7 +2581,7 @@ uint16 Nes::Cpu::CpuDisassemble( char *buffer, uint16 opcodepos ) {
         strcat( buf, " " );
 
     // A:00 X:00 Y:00 P:24 SP:FD CYC:  0 SL:241
-    sprintf( buf2, "A:%02X X:%02X Y:%02X P:%02X SP:%02X PPU:%03u CpuCycles:%llu", A, X, Y, P, S, ppu->pixelCycle, cycles );
+    sprintf( buf2, "A:%02X X:%02X Y:%02X P:%02X SP:%02X PPU:%03u CpuCycles:%llu", A, X, Y, P.data, S, ppu->pixelCycle, cycles );
     strcat( buf, buf2 );
 
     if ( testAsm )

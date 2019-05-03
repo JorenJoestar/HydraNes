@@ -408,6 +408,7 @@ void MainState::Init( application::InitContext& context ) {
     }
 
     simulationType = emulationOptions.executeLastRomOnStartup ? type_continuous : type_step;
+    nesui.executeOnStartup = emulationOptions.executeLastRomOnStartup;
 
     cpuTestMode = false;
     if ( cpuTestMode ) {
@@ -661,7 +662,7 @@ void MainState::ExecuteCpuTest() {
         P = (uint8)strtoul( buf, nullptr, 16 );
 
 
-        if ( P != nes.cpu.P ) {
+        if ( P != nes.cpu.P.data ) {
             Assert( false && "Error!" );
         }
 

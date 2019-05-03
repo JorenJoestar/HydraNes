@@ -328,27 +328,44 @@ namespace hydra {
             static const uint16 kIrqVector = 0xFFFE;
 
             // Registers
-            uint8       A, X, Y, S, P;
+            uint8       A, X, Y, S;
             uint16      PC;
 
-            struct Flags {
-                uint8 c : 1;    // carry
-                uint8 z : 1;    // zero
-                uint8 i : 1;    // interrupt
-                uint8 d : 1;    // decimal
-                uint8 b : 1;    // break/software interrupt
-                uint8 pad : 1;
-                uint8 v : 1;    // overflow
-                uint8 n : 1;    // negative/sign flag
-            };
+            // Processor Status register
+            union PS {
+
+                enum FlagsBit {
+                    FlagsBit_Carry          = 1,
+                    FlagsBit_Zero           = 1 << 1,
+                    FlagsBit_Interrupt      = 1 << 2,
+                    FlagsBit_Decimal        = 1 << 3,
+                    FlagsBit_Break          = 1 << 4,
+                    FlagsBit_Reserved       = 1 << 5,
+                    FlagsBit_Overflow       = 1 << 6,
+                    FlagsBit_Negative       = 1 << 7
+                };
+
+                struct Flags {
+                    uint8 c : 1;        // carry
+                    uint8 z : 1;        // zero
+                    uint8 i : 1;        // interrupt
+                    uint8 d : 1;        // decimal
+                    uint8 b : 1;        // break flag, but never stored in the register.
+                    uint8 r : 1;        // reserved 
+                    uint8 v : 1;        // overflow
+                    uint8 n : 1;        // negative/sign flag
+                } flags;
+
+                uint8   data;
+            } P;
+            
+            static const uint8 kPSMask = 0xCF;  // Ignore bit 4 and 5 (break and reserved) when setting. Break is not present in the register.
 
             enum IRQSource {
                 IRQSource_DMC           = 1,
                 IRQSource_FrameCounter  = 1 << 1,
                 IRQSource_MMC3          = 1 << 2,
             };
-
-            Flags       flags;
 
             uint64      cycles;
             uint32      frameCycles;
@@ -396,8 +413,8 @@ namespace hydra {
             uint8       Pop();
 
             void        SetZeroOrNegativeFlags( uint8 value );
-            void        ExpandFlags( uint8 value );
-            uint8       CompactFlags();
+            void        SetPS( uint8 value );
+            uint8       GetPS();
 
             void        SetNMI();
             void        ClearNMI();
@@ -601,26 +618,26 @@ namespace hydra {
             // comparison
             ForceInline void OP_BIT() {
                 tempReg = MemoryRead( effectiveAddress );
-                flags.v = ( tempReg >> 6 ) & 1;
-                flags.n = ( tempReg >> 7 ) & 1;
-                flags.z = ( A & tempReg ) ? 0 : 1;
+                P.flags.v = ( tempReg >> 6 ) & 1;
+                P.flags.n = ( tempReg >> 7 ) & 1;
+                P.flags.z = ( A & tempReg ) ? 0 : 1;
             }
 
             ForceInline void OP_CMP() {
                 tempReg16 = A - MemoryRead( effectiveAddress );
-                flags.c = !( tempReg16 & 0x100 );
+                P.flags.c = !( tempReg16 & 0x100 );
                 SetZeroOrNegativeFlags( (uint8)tempReg16 );
             }
 
             ForceInline void OP_CPX() {
                 tempReg16 = X - MemoryRead( effectiveAddress );
-                flags.c = !( tempReg16 & 0x100 );
+                P.flags.c = !( tempReg16 & 0x100 );
                 SetZeroOrNegativeFlags( (uint8)tempReg16 );
             }
 
             ForceInline void OP_CPY() {
                 tempReg16 = Y - MemoryRead( effectiveAddress );
-                flags.c = !( tempReg16 & 0x100 );
+                P.flags.c = !( tempReg16 & 0x100 );
                 SetZeroOrNegativeFlags( (uint8)tempReg16 );
             }
 
@@ -639,35 +656,35 @@ namespace hydra {
             }
 
             ForceInline void OP_BCS() {
-                OP_BRANCH( flags.c );
+                OP_BRANCH( P.flags.c );
             }
 
             ForceInline void OP_BCC() {
-                OP_BRANCH( !flags.c );
+                OP_BRANCH( !P.flags.c );
             }
 
             ForceInline void OP_BEQ() {
-                OP_BRANCH( flags.z );
+                OP_BRANCH( P.flags.z );
             }
 
             ForceInline void OP_BNE() {
-                OP_BRANCH( !flags.z );
+                OP_BRANCH( !P.flags.z );
             }
 
             ForceInline void OP_BPL() {
-                OP_BRANCH( !flags.n );
+                OP_BRANCH( !P.flags.n );
             }
 
             ForceInline void OP_BMI() {
-                OP_BRANCH( flags.n );
+                OP_BRANCH( P.flags.n );
             }
 
             ForceInline void OP_BVC() {
-                OP_BRANCH( !flags.v );
+                OP_BRANCH( !P.flags.v );
             }
 
             ForceInline void OP_BVS() {
-                OP_BRANCH( flags.v );
+                OP_BRANCH( P.flags.v );
             }
 
             // stack
@@ -676,20 +693,18 @@ namespace hydra {
             }
 
             ForceInline void OP_PHP() {
-                uint8 p = CompactFlags();
-                Push( p | ( 1 << 4 ) ); // b flag set
+                Push( GetPS() | PS::FlagsBit_Break | PS::FlagsBit_Reserved );   // PHP and BRK always sets bit 4 and 5.
             }
 
             ForceInline void OP_PLA() {
-                MemoryRead( S | 0x100 );
+                DummyRead();
                 A = Pop();
                 SetZeroOrNegativeFlags( A );
             }
 
             ForceInline void OP_PLP() {
                 DummyRead();
-                uint8 p = Pop();
-                ExpandFlags( p );
+                SetPS( Pop() );
             }
 
             ForceInline void OP_JSR() {
@@ -719,10 +734,10 @@ namespace hydra {
             }
 
             ForceInline void OP_BRK() {
-                DummyRead();
+                //DummyRead();
                 Push( (uint8)((PC + 1)>> 8 ) );
                 Push( (uint8)(PC + 1) );
-
+                // Push PS on the stack and set bit 4 and 5.
                 OP_PHP();
 
                 if ( nmistate ) {
@@ -739,31 +754,31 @@ namespace hydra {
 
             // flags
             ForceInline void OP_SEC() {
-                flags.c = 1;
+                P.flags.c = 1;
             }
 
             ForceInline void OP_SEI() {
-                flags.i = 1;
+                P.flags.i = 1;
             }
 
             ForceInline void OP_SED() {
-                flags.d = 1;
+                P.flags.d = 1;
             }
 
             ForceInline void OP_CLC() {
-                flags.c = 0;
+                P.flags.c = 0;
             }
 
             ForceInline void OP_CLI() {
-                flags.i = 0;
+                P.flags.i = 0;
             }
 
             ForceInline void OP_CLD() {
-                flags.d = 0;
+                P.flags.d = 0;
             }
 
             ForceInline void OP_CLV() {
-                flags.v = 0;
+                P.flags.v = 0;
             }
 
             // transfer
@@ -850,14 +865,14 @@ namespace hydra {
             ForceInline void OP_ASL() {
                 tempReg = MemoryRead( effectiveAddress );
                 MemoryWrite( effectiveAddress, tempReg );
-                flags.c = ( tempReg >> 7 ) & 1;
+                P.flags.c = ( tempReg >> 7 ) & 1;
                 tempReg <<= 1;
                 MemoryWrite( effectiveAddress, tempReg );
                 SetZeroOrNegativeFlags( tempReg );
             }
 
             ForceInline void OP_ASLA() {
-                flags.c = ( A >> 7 ) & 1;
+                P.flags.c = ( A >> 7 ) & 1;
                 A <<= 1;
                 SetZeroOrNegativeFlags( A );
             }
@@ -865,16 +880,16 @@ namespace hydra {
             ForceInline void OP_ROL() {
                 tempReg = MemoryRead( effectiveAddress );
                 MemoryWrite( effectiveAddress, tempReg );
-                uint8 tmp8 = flags.c;
-                flags.c = ( tempReg >> 7 ) & 1;
+                uint8 tmp8 = P.flags.c;
+                P.flags.c = ( tempReg >> 7 ) & 1;
                 tempReg = ( tempReg << 1 ) | tmp8;
                 MemoryWrite( effectiveAddress, tempReg );
                 SetZeroOrNegativeFlags( tempReg );
             }
 
             ForceInline void OP_ROLA() {
-                tempReg = flags.c;
-                flags.c = ( A >> 7 ) & 1;
+                tempReg = P.flags.c;
+                P.flags.c = ( A >> 7 ) & 1;
                 A = ( A << 1 ) | tempReg;
                 SetZeroOrNegativeFlags( A );
             }
@@ -882,16 +897,16 @@ namespace hydra {
             ForceInline void OP_ROR() {
                 tempReg = MemoryRead( effectiveAddress );
                 MemoryWrite( effectiveAddress, tempReg );
-                uint8 tmp8 = flags.c;
-                flags.c = tempReg & 1;
+                uint8 tmp8 = P.flags.c;
+                P.flags.c = tempReg & 1;
                 tempReg = ( tempReg >> 1 ) | ( tmp8 << 7 );
                 MemoryWrite( effectiveAddress, tempReg );
                 SetZeroOrNegativeFlags( tempReg );
             }
 
             ForceInline void OP_RORA() {
-                tempReg = flags.c;
-                flags.c = A & 1;
+                tempReg = P.flags.c;
+                P.flags.c = A & 1;
                 A = ( A >> 1 ) | ( tempReg << 7 );
                 SetZeroOrNegativeFlags( A );
             }
@@ -899,32 +914,32 @@ namespace hydra {
             ForceInline void OP_LSR() {
                 tempReg = MemoryRead( effectiveAddress );
                 MemoryWrite( effectiveAddress, tempReg );
-                flags.c = tempReg & 1;
+                P.flags.c = tempReg & 1;
                 tempReg >>= 1;
                 MemoryWrite( effectiveAddress, tempReg );
                 SetZeroOrNegativeFlags( tempReg );
             }
 
             ForceInline void OP_LSRA() {
-                flags.c = A & 1;
+                P.flags.c = A & 1;
                 A >>= 1;
                 SetZeroOrNegativeFlags( A );
             }
 
             ForceInline void OP_ADC() {
                 tempReg = MemoryRead( effectiveAddress );
-                int16 tmpi = A + tempReg + flags.c;
-                flags.c = ( tmpi & 0xFF00 ) ? 1 : 0;
-                flags.v = ( ( ( A ^ tmpi ) & ( tempReg ^ tmpi ) ) & 0x80 ) ? 1 : 0;
+                int16 tmpi = A + tempReg + P.flags.c;
+                P.flags.c = ( tmpi & 0xFF00 ) ? 1 : 0;
+                P.flags.v = ( ( ( A ^ tmpi ) & ( tempReg ^ tmpi ) ) & 0x80 ) ? 1 : 0;
                 A = (uint8)tmpi;
                 SetZeroOrNegativeFlags( A );
             }
 
             ForceInline void OP_SBC() {
                 tempReg = MemoryRead( effectiveAddress );
-                int16 tmpi = A - tempReg - ( 1 - flags.c );
-                flags.c = ( ( tmpi & 0xFF00 ) == 0 ) ? 1 : 0;
-                flags.v = ( ( ( A ^ tempReg ) & ( A ^ tmpi ) ) & 0x80 ) ? 1 : 0;
+                int16 tmpi = A - tempReg - ( 1 - P.flags.c );
+                P.flags.c = ( ( tmpi & 0xFF00 ) == 0 ) ? 1 : 0;
+                P.flags.v = ( ( ( A ^ tempReg ) & ( A ^ tmpi ) ) & 0x80 ) ? 1 : 0;
                 A = (uint8)tmpi;
                 SetZeroOrNegativeFlags( A );
             }

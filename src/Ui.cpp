@@ -197,7 +197,7 @@ void NesUI::DrawCpuStatus() {
     ImGui::Columns( 7 );
 
     static cstring kLabels[] = { "A", "X", "Y", "S", "P" };
-    static uint8* sValues[] = { &nes.cpu.A, &nes.cpu.X, &nes.cpu.Y, &nes.cpu.S, &nes.cpu.P };
+    static uint8* sValues[] = { &nes.cpu.A, &nes.cpu.X, &nes.cpu.Y, &nes.cpu.S, &nes.cpu.P.data };
     const uint32 registerCount = ArrayLength( sValues );
 
     for ( uint8 i = 0; i < registerCount; ++i ) {
@@ -221,7 +221,7 @@ void NesUI::DrawCpuStatus() {
     ImGui::Columns( 7 );
 
     static cstring kLabelsFlag[] = { "Carry", "Zero", "Interrupt", "Decimal", "Break", "", "Overflow", "Sign" };
-    uint8* flags = (uint8*)( &nes.cpu.flags );
+    uint8* flags = (uint8*)( &nes.cpu.P.flags );
 
     for ( uint8 i = 0; i < 8; ++i ) {
         // Skip empty bit

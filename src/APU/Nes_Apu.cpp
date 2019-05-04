@@ -333,8 +333,8 @@ int Nes_Apu::read_status( cpu_time_t time )
 	
 	if ( irq_flag ) {
 		irq_flag = false;
-		irq_changed( IRQSource_FrameCounter, false );
 	}
+    irq_changed( IRQSource_FrameCounter, false );
 	
 	return result;
 }

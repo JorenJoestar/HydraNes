@@ -251,6 +251,7 @@ public:
     void OnVoiceProcessingPassStart(UINT32 SamplesRequired) {    }
     void OnBufferEnd(void * pBufferContext) {
 
+#if defined (NES_EXTERNAL_APU)
         XAUDIO2_VOICE_STATE voiceState;
         sourceVoice->GetState(&voiceState);
         if (voiceState.BuffersQueued < 1) {
@@ -266,6 +267,7 @@ public:
                 (FAILED(sourceVoice->SubmitSourceBuffer(&buffer)));
             }
         }
+#endif
     }
     void OnBufferStart(void * pBufferContext) {
     }
@@ -339,6 +341,8 @@ struct AudioSystemNes : public hydra::UpdateSystem {
     }
 
     void Update() override {
+
+#if defined (NES_EXTERNAL_APU)
         XAUDIO2_VOICE_STATE voiceState;
         sourceVoice->GetState( &voiceState );
         //if ( voiceState.BuffersQueued < 1 )
@@ -362,6 +366,7 @@ struct AudioSystemNes : public hydra::UpdateSystem {
                 }
             }
         }
+#endif
     }
 };
 
@@ -407,11 +412,6 @@ void MainState::Init( application::InitContext& context ) {
 
     renderer->device.EnableDebugOutput( false );
 
-#if defined(NES_SHOW_ASM)
-    nes.cpu.CpuDisassembleInit();
-    nes.cpu.showAsm = false;
-    nes.cpu.testAsm = false;
-#endif
     nes.Init( &emulationOptions );
 
     nes.screenTexture = renderer->fbs->rts[0]->handle;    
@@ -491,7 +491,7 @@ bool MainState::Update( application::UpdateContext& context ) {
             // Emulate APU
             nes.apu.EndFrame(elapsedCpuCycles);
 
-            nes.cpu.frameCycles = 0;
+            nes.cpu.frameCycles = 1;
         }
 
         // Reset per frame data if frame is changed
@@ -593,6 +593,8 @@ void MainState::SaveOptions( cstring ini_filename ) {
     emulationOptions.masterVolume = nes.apu.volume;
     emulationOptions.lastOpenedRom = nes.cart.filename;
     emulationOptions.executeLastRomOnStartup = nesui.executeOnStartup;
+    emulationOptions.width = window->frameBufferWidth;
+    emulationOptions.height = window->frameBufferHeight;
 
     fprintf_s( ini_file, "[Window]\n" );
     fprintf_s( ini_file, "window_width=%u\n", emulationOptions.width );

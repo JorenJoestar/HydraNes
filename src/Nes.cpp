@@ -156,6 +156,15 @@ void Nes::Cpu::Reset() {
         ppu->Tick();
     }
 
+#if !defined(NES_EXTERNAL_APU)
+    // From Blargg apu test:
+    // - After reset or power-up, APU acts as if $4017 were written with $00
+    // from 9 to 12 clocks before first instruction begins.It is as if this
+    // occurs( this generates a 10 clock delay )
+    for ( uint32 i = 0; i < 10; ++i ) {
+        apu->Tick();
+    }
+#endif
     PC = MemoryReadWord( kResetVector );
 }
 
@@ -1790,13 +1799,15 @@ void Nes::Apu::Init( Cpu* cpu ) {
     volume = 0.1f;
     Mute( true );
 
-#if defined (NES_EXTERNAL_APU)
     if ( !blipBuffer ) {
         blipBuffer = new Blip_Buffer();
 
         blipBuffer->clock_rate( CpuClockRate );
         blipBuffer->sample_rate( SampleRate );
     }
+
+#if defined (NES_EXTERNAL_APU)
+    
 
     if ( !externalApu ) {
         externalApu = new Nes_Apu();
@@ -1810,17 +1821,22 @@ void Nes::Apu::Init( Cpu* cpu ) {
 
         externalApu->treble_eq( trebleEq );
     }
-    blipBuffer->clear();
 #endif
+
+    blipBuffer->clear();
+
+    Reset();
 }
 
 void Nes::Apu::Reset() {
 #if defined (NES_EXTERNAL_APU)
     if ( externalApu ) {
         externalApu->reset();
-        blipBuffer->clear();
     }
 #endif
+
+    blipBuffer->clear();
+
     for ( size_t i = 0; i < 31; ++i ) {
         apuPulseTable[i] = 95.52f / (8128.0f / float( i ) + 100);
     }
@@ -1830,6 +1846,8 @@ void Nes::Apu::Reset() {
     }
 
 	frameCycle = 0;
+
+    frameCounter.Reset();
 }
 
 void Nes::Apu::Tick() {
@@ -1861,6 +1879,8 @@ void Nes::Apu::Tick() {
         pulse1.TickTimer();
         pulse2.TickTimer();
     }
+
+    ++frameCycle;
 	
 	// Update components
 	switch (frameCounter.mode) {
@@ -1900,8 +1920,7 @@ void Nes::Apu::Tick() {
 
 				case 29830: {
 					// 29830 Set frame irq
-                    if ( !frameCounter.inhibitIRQ )
-                        cpu->SetIRQ( 1 );
+                    frameCounter.TriggerIRQ( cpu );
 					break;
 				}
 
@@ -1914,16 +1933,14 @@ void Nes::Apu::Tick() {
                     pulse1.TickLengthCounter();
                     pulse2.TickLengthCounter();
 
-                    if ( !frameCounter.inhibitIRQ )
-                        cpu->SetIRQ( 1 );
+                    frameCounter.TriggerIRQ( cpu );
 
 					break;
 				}
 
 				case 29832: {
 					// 29832 Set frame irq
-                    if ( !frameCounter.inhibitIRQ )
-                        cpu->SetIRQ( 1 );
+                    frameCounter.TriggerIRQ( cpu );
 
 					break;
 				}
@@ -1971,7 +1988,7 @@ void Nes::Apu::Tick() {
 					break;
 				}
 
-				case 37282: {
+				case 37283: {
 					// Step 4
 					// 29831 Clock linear & length and set frame irq
                     pulse1.TickEnvelope();
@@ -1980,15 +1997,12 @@ void Nes::Apu::Tick() {
                     pulse1.TickLengthCounter();
                     pulse2.TickLengthCounter();
 
-
 					break;
 				}
             }
 			break;
 		}
 	}
-
-    ++frameCycle;
 
 	// 40 = 1789773 / 44100
     if (frameCycle % (CpuClockRate / SampleRate) == 0)  {
@@ -2020,16 +2034,39 @@ void Nes::Apu::Tick() {
 		}
 
         case 1: {
-			if (frameCycle >= 37289) {
+			if (frameCycle >= 37283) {
                 
                 //blipBuffer->end_frame(37289);
 				//blip_end_frame(blipBuffer, 37289);
-				frameCycle = 7459;
+				frameCycle = 0;
 			}
 
             break;
         }
 	}
+
+    // Delay the update of the frame counter
+    if ( frameCounter.dataWriteDelay >= 0 ) {
+        --frameCounter.dataWriteDelay;
+
+        if ( frameCounter.dataWriteDelay == 0 ) {
+
+            frameCounter.mode = (frameCounter.data & FrameCounter::RegisterFlags_Mode) ? 1 : 0;
+            frameCounter.dataWriteDelay = -1;
+
+            if ( frameCounter.mode == 1 ) {
+                // Clock immediately
+                pulse1.TickEnvelope();
+                pulse1.TickLengthCounter();
+                pulse1.TickSweep();
+
+                pulse2.TickEnvelope();
+                pulse2.TickLengthCounter();
+                pulse2.TickSweep();
+            }
+        }
+    }
+
 #endif // NES_EXTERNAL_APU
 }
 
@@ -2053,65 +2090,41 @@ void Nes::Apu::WriteControl( uint8 data ) {
 #if defined(NES_EXTERNAL_APU)
     if (externalApu) {
         externalApu->write_register( cpu->frameCycles, 0x4015, data);
-        // Writing to this register clears the DMC interrupt flag.
-        cpu->ClearIRQ( Cpu::IRQSource_DMC );
         return;
     }
 #else
     enabledChannels.data = data;
 
-	if (!enabledChannels.pulse1) {
+	if (!enabledChannels.flags.pulse1) {
 		pulse1.lengthCounter = 0;
 	}
 
-	if (!enabledChannels.pulse2) {
+	if (!enabledChannels.flags.pulse2) {
 		pulse2.lengthCounter = 0;
 	}
 #endif
 }
 
-void Nes::Apu::WriteFrameCounter( uint8 data ) {
-
-#if defined(NES_EXTERNAL_APU)
-    if (externalApu) {
-        externalApu->write_register( cpu->frameCycles, 0x4017, data);
-        return;
-    }
-#else
-    frameCounter.data = data;
-	
-	if (frameCounter.mode == 1) {
-		// Clock immediately
-		pulse1.TickEnvelope();
-		pulse1.TickLengthCounter();
-		pulse1.TickSweep();
-
-		pulse2.TickEnvelope();
-		pulse2.TickLengthCounter();
-		pulse2.TickSweep();
-	}
-#endif
-}
 
 uint8 Nes::Apu::ReadStatus() {
 #if defined(NES_EXTERNAL_APU)
     if ( externalApu ) {
         uint8 status = externalApu->read_status( cpu->frameCycles );
-        // Reading this register clears the frame interrupt flag (but not the DMC interrupt flag).
-        cpu->ClearIRQ( Cpu::IRQSource_FrameCounter );
         return status;
     }
 #endif
-    uint8 status = (pulse1.lengthCounter > 0 ? 1 : 0) | (pulse1.lengthCounter > 0 ? 2 : 0);
+    uint8 status = (pulse1.lengthCounter > 0 ? 1 : 0) | (pulse2.lengthCounter > 0 ? 2 : 0);
+    status |= frameCounter.hasIRQ ? 1 << 6 : 0;
+
+    frameCounter.hasIRQ = false;
+    cpu->ClearIRQ( Cpu::IRQSource_FrameCounter );
 
     return status;
 }
 
 uint8 Nes::Apu::CpuRead( uint16 address ) {
-    
-#if defined(NES_EXTERNAL_APU)
+
     Assert( false );
-#endif
 
     return 0;
 }
@@ -2143,7 +2156,7 @@ void Nes::Apu::CpuWrite( uint16 address, uint8 data ) {
             // Hight 3 bit of timerPeriod
             pulse1.timerPeriod = (pulse1.timerPeriod & 0x0F) | ((data & 0x7) << 8);
             // 5 bit length counter load
-            if ( enabledChannels.pulse1  ) {
+            if ( enabledChannels.flags.pulse1  ) {
                 uint8 lengthCounterIndex = (data >> 3) & 0x1F;
                 pulse1.lengthCounter = apuLenghtCounterTable[lengthCounterIndex];
             }
@@ -2168,7 +2181,7 @@ void Nes::Apu::CpuWrite( uint16 address, uint8 data ) {
             // Hight 3 bit of timerPeriod
             pulse2.timerPeriod = (pulse2.timerPeriod & 0x0F) | ((data & 0x7) << 8);
             // 5 bit length counter load
-            if ( enabledChannels.pulse2 ) {
+            if ( enabledChannels.flags.pulse2 ) {
                 uint8 lengthCounterIndex = (data >> 3) & 0x1F;
                 pulse2.lengthCounter = apuLenghtCounterTable[lengthCounterIndex];
             }
@@ -2176,7 +2189,36 @@ void Nes::Apu::CpuWrite( uint16 address, uint8 data ) {
             pulse2.dutyCycle = 0;
             break;
         }
+
+        case $4015_Status: {
+            // Enable each channel.
+            // TODO: should the channel know if it is enabled ?
+            enabledChannels.data = data;
+
+            pulse1.lengthCounter = enabledChannels.flags.pulse1 ? pulse1.lengthCounter : 0;
+            pulse2.lengthCounter = enabledChannels.flags.pulse2 ? pulse2.lengthCounter : 0;
+
+            cpu->ClearIRQ( Cpu::IRQSource_DMC );
+            break;
+        }
+
+        case $4017_FrameCounter: {
+
+            frameCounter.data = data;
+
+            if ( (data & FrameCounter::RegisterFlags_InhibitIRQ) == FrameCounter::RegisterFlags_InhibitIRQ ) {
+                frameCounter.hasIRQ = false;
+                cpu->ClearIRQ( Cpu::IRQSource_FrameCounter );
+            }
+
+            // After 3 or 4 CPU clock cycles*, the timer is reset.
+            frameCounter.dataWriteDelay = cpu->cycles & 0x01 ? 3 : 4;
+            
+            break;
+        }
+
         default:
+            PrintFormat( "Error writing to %X\n", address );
             break;
     }
 
@@ -2221,6 +2263,18 @@ void Nes::Apu::SetVolume( float value ) {
 #endif
 }
 
+void Nes::Apu::FrameCounter::Reset() {
+    mode = 0;
+    hasIRQ = 0;
+    dataWriteDelay = -1;
+}
+
+void Nes::Apu::FrameCounter::TriggerIRQ( Cpu* cpu ) {
+    if ( (data & FrameCounter::RegisterFlags_InhibitIRQ) != FrameCounter::RegisterFlags_InhibitIRQ ) {
+        hasIRQ = true;
+        cpu->SetIRQ( Cpu::IRQSource_FrameCounter );
+    }
+}
 
 //////////////////////////////////////////////////////////////////////////
 static const uint8 kDutyPeriod = 8;
@@ -2396,6 +2450,12 @@ void setIrq(void* data, int source, bool value) {
 void Nes::Init( Options* options ) {
 
     this->options = options;
+
+#if defined(NES_SHOW_ASM)
+    cpu.CpuDisassembleInit();
+    cpu.showAsm = false;
+    cpu.testAsm = false;
+#endif
 
     cpu.Init( &ppu, &apu, &memoryController );
     ppu.Init( &cpu, &screen, &memoryController );

@@ -1212,30 +1212,42 @@ namespace hydra {
             };
 
             struct DeltaModulationChannel {
-
+                uint8               irq;
             };
 
             union EnabledChannels {
                 uint8               data;
 
-                struct {
+                struct Flags {
                     uint8           pulse1 : 1;
                     uint8           pulse2 : 1;
                     uint8           triangle : 1;
                     uint8           noise : 1;
                     uint8           dmc : 1;
                     uint8           padding : 3;
-                };
+                } flags;
             };
 
-            union FrameCounter {
-                uint8               data;
+            struct FrameCounter {
 
-                struct {
-                    uint8           padding : 6;
-                    uint8           inhibitIRQ : 1;
-                    uint8           mode : 1;
+                enum RegisterFlags {
+                    RegisterFlags_InhibitIRQ = 1 << 6,
+                    RegisterFlags_Mode       = 1 << 7
                 };
+
+                uint8               data;
+                uint8               dataWriteDelay;
+                uint8               hasIRQ;
+                uint8               mode;
+
+                void                TriggerIRQ( Cpu* cpu );
+
+                void                Reset();
+            };
+
+            enum Registers {
+                $4015_Status        = 0x4015,
+                $4017_FrameCounter  = 0x4017
             };
 
             void                    Init(Cpu* cpu);
@@ -1245,7 +1257,6 @@ namespace hydra {
             void                    EndFrame(uint32 count);
 
             void                    WriteControl( uint8 data );
-            void                    WriteFrameCounter( uint8 data );
 
             uint8                   ReadStatus();
 
@@ -1265,15 +1276,16 @@ namespace hydra {
             Cpu*                    cpu;
 
             EnabledChannels         enabledChannels;
-            FrameCounter            frameCounter;
+            FrameCounter            frameCounter;            
 
 			uint16					frameCycle;			// count cycles from the CPU
 
             float                   volume;
             bool                    mute;
 
+            Blip_Buffer*            blipBuffer = nullptr;
+
 #if defined (NES_EXTERNAL_APU)
-			Blip_Buffer*            blipBuffer = nullptr;
 			Nes_Apu*				externalApu = nullptr;
 #endif
 

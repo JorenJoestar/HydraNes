@@ -89,7 +89,7 @@ void Nes::Cpu::Step() {
 
     switch ( opCode ) {
 
-        OP(00, BRK,IMM) OP(01, ORA,INX) OP(02, UNK,UNK) OP(03, UNK3,INX) OP(04, UNK1,ZPG) OP(05, ORA,ZPG) OP(06, ASL,ZPG) OP(07, UNK3,ZPG)
+        OP(00, BRK,IMP) OP(01, ORA,INX) OP(02, UNK,UNK) OP(03, UNK3,INX) OP(04, UNK1,ZPG) OP(05, ORA,ZPG) OP(06, ASL,ZPG) OP(07, UNK3,ZPG)
         OP(08, PHP,IMP) OP(09, ORA,IMM) OP(0A,ASLA,IMP) OP(0B, UNK1,IMM) OP(0C, UNK1,ABS) OP(0D, ORA,ABS) OP(0E, ASL,ABS) OP(0F, UNK3,ABS)
         OP(10, BPL,REL) OP(11, ORA,IYR) OP(12, UNK,UNK) OP(13, UNK3,INY) OP(14, UNK1,ZPX) OP(15, ORA,ZPX) OP(16, ASL,ZPX) OP(17, UNK4,ZPG)
         OP(18, CLC,IMP) OP(19, ORA,AYR) OP(1A, UNK1,UNK) OP(1B, UNK3,AXW) OP(1C, UNK1,AXR) OP(1D, ORA,AXR) OP(1E, ASL,AXW) OP(1F, UNK3,AXW)
@@ -325,6 +325,7 @@ bool Nes::Cart::LoadRom( cstring filename ) {
     prgRom.clear();
     chrRom.clear();
     prgRam.clear();
+    chrRam.clear();
 
     //    76543210
     //    ||||||||
@@ -346,6 +347,7 @@ bool Nes::Cart::LoadRom( cstring filename ) {
 
     // Always allocate some SRAM. Some INES headers are incorrect in the sram presence.
     prgRam.resize( romHeader.prgRamPages ? kPrgRamSize * romHeader.prgRamPages : kPrgRamSize );
+    chrRam.resize( kChrBankSize );
 
     // Search for sram file
     String sramFilename( filename );
@@ -384,13 +386,13 @@ bool Nes::Cart::LoadRom( cstring filename ) {
 
 //////////////////////////////////////////////////////////////////////////
 Nes::Mapper0::Mapper0( Cpu* cpu, Cart & cart ) : Mapper(cpu) {
-    const uint16 romPrgBanks = cart.prgRom.size() / kPrgBankSize;
+    const uint16 romPrgBanks = cart.romHeader.prgRomPages;
     prgAddressMask = romPrgBanks == 1 ? 0x3FFF : 0x7FFF;
 
     mirroring = (cart.romHeader.flag0 & 1) ? MirrorVertical : MirrorHorizontal;
     
     prg = cart.prgRom.begin();
-    chr = cart.chrRom.size() ? cart.chrRom.begin() : cart.chrRam;
+    chr = cart.romHeader.chrRomPages ? cart.chrRom.begin() : cart.chrRam.begin();
 }
 
 uint8 Nes::Mapper0::ChrRead( uint16 address ) {
@@ -425,12 +427,12 @@ Nes::Mapper1::Mapper1( Cpu* cpu, Cart & cart ) : Mapper( cpu ) {
     }
     registers[0] = 0xC;
 
-    prgRomBankCount = cart.prgRom.size() / kPrgBankSize;
-    chrRomBankCount = cart.chrRom.size() ? cart.chrRom.size() / kChrBankSize : 1;
+    prgRomBankCount = cart.romHeader.prgRomPages;
+    chrRomBankCount = cart.romHeader.chrRomPages;
 
     prgRam = cart.prgRam.size() ? cart.prgRam.begin() : nullptr;
     prg = cart.prgRom.begin();
-    chr = cart.chrRom.size() ? cart.chrRom.begin() : cart.chrRam;
+    chr = chrRomBankCount ? cart.chrRom.begin() : cart.chrRam.begin();
 
     UpdateBanks();
 }
@@ -607,7 +609,7 @@ Nes::Mapper2::Mapper2( Cpu* cpu, Cart & cart ) : Mapper( cpu ) {
 
     mirroring = (cart.romHeader.flag0 & 1) ? MirrorVertical : MirrorHorizontal;
 
-    const uint16 romPrgBanks = cart.prgRom.size() / kPrgBankSize;
+    const uint16 romPrgBanks = cart.romHeader.prgRomPages;
     // Bank 0 is switchable
     prgBank0 = cart.prgRom.begin();
     // Bank 1 is fixed to last bank
@@ -615,7 +617,7 @@ Nes::Mapper2::Mapper2( Cpu* cpu, Cart & cart ) : Mapper( cpu ) {
     prgBank1 = cart.prgRom.begin() + (kPrgBankSize * lastBankIndex);
 
     prg = cart.prgRom.begin();
-    chr = cart.chrRom.size() ? cart.chrRom.begin() : cart.chrRam;
+    chr = cart.romHeader.chrRomPages ? cart.chrRom.begin() : cart.chrRam.begin();
 }
 
 uint8 Nes::Mapper2::ChrRead( uint16 address ) {
@@ -647,13 +649,13 @@ void Nes::Mapper2::UpdatePrgBank() {
 
 //////////////////////////////////////////////////////////////////////////
 Nes::Mapper3::Mapper3( Cpu* cpu, Cart & cart ) : Mapper(cpu) {
-    const uint16 romPrgBanks = cart.prgRom.size() / kPrgBankSize;
+    const uint16 romPrgBanks = cart.romHeader.prgRomPages;
     prgAddressMask = romPrgBanks == 1 ? 0x3FFF : 0x7FFF;
 
     mirroring = (cart.romHeader.flag0 & 1) ? MirrorVertical : MirrorHorizontal;
 
     prg = cart.prgRom.begin();
-    chr = cart.chrRom.size() ? cart.chrRom.begin() : cart.chrRam;
+    chr = cart.romHeader.chrRomPages ? cart.chrRom.begin() : cart.chrRam.begin();
 
     chrBankSelector = 0;
     chrBank = chr;
@@ -2025,8 +2027,6 @@ void Nes::Apu::Tick() {
 			// Step 1
 			// 37289 Clock linear
 			if (frameCycle >= 37289) {
-                //blipBuffer->end_frame(37289);
-				//blip_end_frame(blipBuffer, 37289);
 				frameCycle = 7459;
 			}
 
@@ -2035,9 +2035,6 @@ void Nes::Apu::Tick() {
 
         case 1: {
 			if (frameCycle >= 37283) {
-                
-                //blipBuffer->end_frame(37289);
-				//blip_end_frame(blipBuffer, 37289);
 				frameCycle = 0;
 			}
 
@@ -2046,13 +2043,12 @@ void Nes::Apu::Tick() {
 	}
 
     // Delay the update of the frame counter
-    if ( frameCounter.dataWriteDelay >= 0 ) {
+    if ( frameCounter.dataWriteDelay > 0 ) {
         --frameCounter.dataWriteDelay;
 
         if ( frameCounter.dataWriteDelay == 0 ) {
 
             frameCounter.mode = (frameCounter.data & FrameCounter::RegisterFlags_Mode) ? 1 : 0;
-            frameCounter.dataWriteDelay = -1;
 
             if ( frameCounter.mode == 1 ) {
                 // Clock immediately
@@ -2312,7 +2308,7 @@ void Nes::Apu::Pulse::TickTimer() {
 }
 
 void Nes::Apu::Pulse::TickLengthCounter() {
-    if ( !control.envelopeLoopOrLengthCounter && lengthCounter ) {
+    if ( !control.lengthCounterHalt && lengthCounter ) {
         --lengthCounter;
     }
 }
@@ -2330,7 +2326,7 @@ void Nes::Apu::Pulse::TickEnvelope() {
         if ( volume > 0 ) {
             --volume;
         }
-        else if ( control.envelopeLoopOrLengthCounter ) {
+        else if ( control.lengthCounterHalt ) {
             volume = kEnvelopeStartVolume;
         }
 

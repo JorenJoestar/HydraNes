@@ -53,9 +53,7 @@ namespace hydra {
             static const uint32 kInvalidMapper = 0xffffffff;
 
             Nes::RomHeader  romHeader;
-            Buffer          prgRom, chrRom, prgRam;
-
-            uint8           chrRam[kChrBankSize];     // Ram used mostly by custom ROM with Mapper 0.
+            Buffer          prgRom, chrRom, prgRam, chrRam;
 
             String          filename;
             uint32          mapperIndex;
@@ -637,10 +635,20 @@ namespace hydra {
                 if ( !flag )
                     return;
 
+                // From 5-branch_delays_irq.s:
+                // ; A taken non-page-crossing branch ignores IRQ during
+                // ; its last clock, so that next instruction executes
+                // ; before the IRQ.Other instructions would execute the
+                // ; NMI before the next instruction.
+                
+
                 DummyRead();
                 const uint16 tempAddress = PC + (int8)effectiveAddress;
                 if ( CheckCrossPage( PC, (int8)effectiveAddress ) ) {
                     DummyRead();
+                }
+                else if ( handleIrq && !prevhandleIrq ) {
+                    handleIrq = false;
                 }
                 PC = tempAddress;
             }
@@ -724,11 +732,12 @@ namespace hydra {
             }
 
             ForceInline void OP_BRK() {
-                //DummyRead();
-                Push( (uint8)((PC + 1)>> 8 ) );
-                Push( (uint8)(PC + 1) );
+                PC++;
+                Push( (uint8)(PC >> 8 ) );
+                Push( (uint8)PC );
                 // Push PS on the stack and set bit 4 and 5.
                 OP_PHP();
+                OP_SEI();
 
                 if ( nmistate ) {
                     nmistate = 0;
@@ -737,7 +746,6 @@ namespace hydra {
                 else {
                     PC = MemoryReadWord( kIrqVector );
                 }
-                OP_SEI();
                 
                 prevhandleIrq = 0;
             }
@@ -1160,7 +1168,7 @@ namespace hydra {
                     struct {
                         uint8       envelopeOrVolume : 4;
                         uint8       volumeOrEnvelopeDecay : 1;
-                        uint8       envelopeLoopOrLengthCounter : 1;
+                        uint8       lengthCounterHalt : 1;
                         uint8       dutyCycles : 2;
                     };
                 };
@@ -1236,7 +1244,7 @@ namespace hydra {
                 };
 
                 uint8               data;
-                uint8               dataWriteDelay;
+                int8                dataWriteDelay;
                 uint8               hasIRQ;
                 uint8               mode;
 

@@ -234,10 +234,10 @@ void Nes::Cpu::HandleInterrupt() {
     Push( GetPS() | PS::FlagsBit_Reserved );
     if ( nmistate ) {
         P.flags.i = 1;
-        // nmi state can be cleared.
-        nmistate = 0;
 
         PC = MemoryReadWord( kNmiVector );
+        // nmi state can be cleared.
+        nmistate = 0;
     }
     else {
         P.flags.i = 1;
@@ -271,7 +271,7 @@ void Nes::Cpu::ExecuteSpriteDMA( uint8 offset ) {
 
     for ( int i = 0; i < 256; i++ ) {
         uint8 v = MemoryRead( offset * 0x100 + i );
-        MemoryWrite( 0x2014, v );
+        MemoryWrite( 0x2004, v );
 
         --dmaCounterSprite;
     }
@@ -1242,7 +1242,10 @@ void Nes::Ppu::CpuWrite(uint16 address, uint8 data) {
         }
 
         case Ppu::R2004_OAMDATA: {
-            oamMemory[oamAddress++] = data;
+            oamMemory[oamAddress] = data;
+            // Wrap address around
+            oamAddress = (oamAddress + 1) & 0xff;
+
             break;
         }
 
@@ -1832,7 +1835,7 @@ void Nes::Apu::Reset() {
 void Nes::Apu::Tick() {
 #if defined (NES_EXTERNAL_APU)
     if ( externalApu ) {
-        externalApu->run_until( cpu->frameCycles );
+        externalApu->run_until( cpu->frameCycles - 1 );
     }
 #else
 	// f = set interrupt flag

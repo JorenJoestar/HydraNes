@@ -244,11 +244,11 @@ namespace hydra {
                 uint8                   inFocus;
             };
 
-            using RequestExit = void (*)( );
-            using KeyModified = void (*)( const KeyModifiedData& );
-            using CharModified = void (*)( const CharModifiedData& );
-            using WindowResized = void( *)( const WindowResizeData& );
-            using ChangeFocus = void( *)(const ChangeFocusData&);
+            using RequestExit = void (*)( void* userData );
+            using KeyModified = void (*)( void* userData, const KeyModifiedData& );
+            using CharModified = void (*)(void* userData, const CharModifiedData& );
+            using WindowResized = void( *)( void* userData, const WindowResizeData& );
+            using ChangeFocus = void( *)( void* userData, const ChangeFocusData&);
         } // namespace callbacks
 
         namespace events {
@@ -309,6 +309,12 @@ namespace hydra {
 
         void                            Update() override;
         void                            ExecuteCallbacks() override;
+
+        void                            AddRequestExitCallback( window::callbacks::RequestExit callback, void* userData );
+        void                            AddKeyCallback( window::callbacks::KeyModified callback, void* userData );
+        void                            AddCharCallback( window::callbacks::CharModified callback, void* userData );
+        void                            AddResizeCallback( window::callbacks::WindowResized callback, void* userData );
+        void                            AddFocusCallback( window::callbacks::ChangeFocus callback, void* userData );
         
         ProcessHandle                   processHandle;
         WindowHandle                    handle;
@@ -329,22 +335,26 @@ namespace hydra {
         Flag8                           flags;
         
         // Callbacks
-        Array<window::callbacks::RequestExit>  exitCallbacks;
+        Array<window::callbacks::RequestExit>   exitCallbacks;
+        Array<void*>                            exitCallbacksUserData;
         
-        Array<window::callbacks::KeyModified>  keyCallbacks;
-        window::callbacks::KeyModifiedData keyCallbackData;
+        Array<window::callbacks::KeyModified>   keyCallbacks;
+        window::callbacks::KeyModifiedData      keyCallbackData;
+        Array<void*>                            keyCallbackUserData;
 
-        Array<window::callbacks::CharModified> charCallbacks;
-        // TODO: add proper per callback memory mechanism
-        window::callbacks::CharModifiedData charCallbackData;
+        Array<window::callbacks::CharModified>  charCallbacks;
+        window::callbacks::CharModifiedData     charCallbackData;
+        Array<void*>                            charCallbackUserData;
 
         Array<window::callbacks::WindowResized> resizeCallbacks;
-        window::callbacks::WindowResizeData resizeData;
+        window::callbacks::WindowResizeData     resizeData;
+        Array<void*>                            resizeCallbackUserData;
 
-        Array<window::callbacks::ChangeFocus> focusCallbacks;
-        window::callbacks::ChangeFocusData focusData;
+        Array<window::callbacks::ChangeFocus>   focusCallbacks;
+        window::callbacks::ChangeFocusData      focusData;
+        Array<void*>                            focusCallbackUserData;
 
-        Flag                            callbacksActivationMask;
+        Flag                                    callbacksActivationMask;
     };
 
     //////////////////////////////////////////////////////////////////////////

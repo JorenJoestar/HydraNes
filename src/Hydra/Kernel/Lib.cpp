@@ -595,39 +595,74 @@ void WindowSystem::ExecuteCallbacks() {
     if ( callbacksActivationMask.test(window::callbacks::Type_RequestExit_mask) ) {
 
         PrintFormat( "Requesting exit.\n" );
-        for ( auto callback : exitCallbacks )
-            callback();
+        for ( uint32 i = 0; i < exitCallbacks.size(); ++i ) {
+            window::callbacks::RequestExit& callback = exitCallbacks[i];
+            callback( exitCallbacksUserData[i] );
+        }
 
         callbacksActivationMask.reset(window::callbacks::Type_RequestExit_mask);
     }
 
     if ( callbacksActivationMask.test( window::callbacks::Type_CharWritten_mask ) ) {
-        for ( auto callback : charCallbacks )
-            callback( charCallbackData );
+        for ( uint32 i = 0; i < charCallbacks.size(); ++i ) {
+            window::callbacks::CharModified& callback = charCallbacks[i];
+            callback( charCallbackUserData[i], charCallbackData );
+        }
 
         callbacksActivationMask.reset( window::callbacks::Type_CharWritten_mask );
     }
 
     if ( callbacksActivationMask.test( window::callbacks::Type_KeyModified_mask ) ) {
-        for ( auto callback : keyCallbacks )
-            callback( keyCallbackData );
+        for ( uint32 i = 0; i < keyCallbacks.size(); ++i ) {
+            window::callbacks::KeyModified& callback = keyCallbacks[i];
+            callback( keyCallbackUserData[i], keyCallbackData );
+        }
 
         callbacksActivationMask.reset( window::callbacks::Type_KeyModified_mask );
     }
 
     if ( callbacksActivationMask.test( window::callbacks::Type_WindowResize_mask ) ) {
-        for ( auto callback : resizeCallbacks )
-            callback( resizeData );
+        for ( uint32 i = 0; i < resizeCallbacks.size(); ++i ) {
+            window::callbacks::WindowResized& callback = resizeCallbacks[i];
+            callback( resizeCallbackUserData[i], resizeData );
+        }
 
         callbacksActivationMask.reset( window::callbacks::Type_WindowResize_mask );
     }
 
     if ( callbacksActivationMask.test( window::callbacks::Type_ChangeFocus_Mask ) ) {
-        for ( auto callback : focusCallbacks )
-            callback( focusData );
+        for ( uint32 i = 0; i < focusCallbacks.size(); ++i ) {
+            window::callbacks::ChangeFocus& callback = focusCallbacks[i];
+            callback( focusCallbackUserData[i], focusData );
+        }
 
         callbacksActivationMask.reset( window::callbacks::Type_ChangeFocus_Mask );
     }
+}
+
+void WindowSystem::AddRequestExitCallback( window::callbacks::RequestExit callback, void* userData ) {
+    exitCallbacks.push_back( callback );
+    exitCallbacksUserData.push_back( userData );
+}
+
+void WindowSystem::AddKeyCallback( window::callbacks::KeyModified callback, void * userData ) {
+    keyCallbacks.push_back( callback );
+    keyCallbackUserData.push_back( userData );
+}
+
+void WindowSystem::AddCharCallback( window::callbacks::CharModified callback, void * userData ) {
+    charCallbacks.push_back( callback );
+    charCallbackUserData.push_back( userData );
+}
+
+void WindowSystem::AddResizeCallback( window::callbacks::WindowResized callback, void * userData ) {
+    resizeCallbacks.push_back( callback );
+    resizeCallbackUserData.push_back( userData );
+}
+
+void WindowSystem::AddFocusCallback( window::callbacks::ChangeFocus callback, void * userData ) {
+    focusCallbacks.push_back( callback );
+    focusCallbackUserData.push_back( userData );
 }
 
 //////////////////////////////////////////////////////////////////////////

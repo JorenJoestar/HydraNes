@@ -22,16 +22,6 @@
 
 using namespace hydra;
 
-application::App sc;
-
-void SetExit() {
-    sc._setExit = true;
-}
-
-void ResizeApplication( const window::callbacks::WindowResizeData& data ) {
-    sc.Resize( data.width, data.height );
-}
-
 //////////////////////////////////////////////////////////////////////////
 
 const GLchar *sScreenComputeCode =
@@ -374,6 +364,19 @@ struct AudioSystemNes : public hydra::UpdateSystem {
 //////////////////////////////////////////////////////////////////////////
 static cstring kIniFilename = "hydra_nes.ini";
 
+application::App hydraNesApplication;
+
+void ResizeApplication( void* userData, const window::callbacks::WindowResizeData& data ) {
+    application::App* application = (application::App*)userData;
+    application->Resize( data.width, data.height );
+}
+
+void SetExit( void* userData ) {
+    application::App* application = (application::App*)userData;
+    application->_setExit = true;
+}
+
+
 MainState::MainState() : nesui( this, nes ) {
 
 }
@@ -392,8 +395,8 @@ void MainState::Init( application::InitContext& context ) {
 
     WindowInit wInit = { nullptr, hInstance, "Hydra", "Hydra", 0, 0, emulationOptions.width, emulationOptions.height, &windowEventBlob, false };
     window = engine->AddUpdate<WindowSystem>( wInit, ord_window );
-    window->exitCallbacks.push_back(SetExit);
-    window->resizeCallbacks.push_back(ResizeApplication);
+    window->AddRequestExitCallback( SetExit, &hydraNesApplication );
+    window->AddResizeCallback( ResizeApplication, &hydraNesApplication );
 
     input = engine->AddUpdate<input::InputSystem>( ord_input );
     time = engine->AddUpdate<TimeSystem>( ord_time );
@@ -743,10 +746,10 @@ HyWinMain() {
     MainState m;
     m.hInstance = hInstance;
 
-    application::StateId id = sc.AddState( &m );
-    sc.ChangeState( id );
+    application::StateId id = hydraNesApplication.AddState( &m );
+    hydraNesApplication.ChangeState( id );
 
-    sc.MainLoop();
+    hydraNesApplication.MainLoop();
 
     return 0;
 }

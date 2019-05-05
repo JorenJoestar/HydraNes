@@ -133,7 +133,7 @@ void ImGui_ImplGlfwGL3_ScrollCallback( GLFWwindow*, double xoffset, double yoffs
     g_MouseWheel += (float)yoffset; // Use fractional mouse wheel, 1.0 unit 5 lines.
 }
 */
-void ImGui_ImplGlfwGL3_KeyCallback( const window::callbacks::KeyModifiedData& data ) {
+void ImGui_ImplGlfwGL3_KeyCallback( void* userData, const window::callbacks::KeyModifiedData& data ) {
     ImGuiIO& io = ImGui::GetIO();
     // TODO: add proper value.
     if ( data.keyDown )
@@ -146,12 +146,12 @@ void ImGui_ImplGlfwGL3_KeyCallback( const window::callbacks::KeyModifiedData& da
    io.KeyAlt = io.KeysDown[hydra::input::KEY_LALT] || io.KeysDown[hydra::input::KEY_RALT];
 }
 
-void ImGui_ImplGlfwGL3_CharCallback( const window::callbacks::CharModifiedData& data ) {
+void ImGui_ImplGlfwGL3_CharCallback( void* userData, const window::callbacks::CharModifiedData& data ) {
     ImGuiIO& io = ImGui::GetIO();
     io.AddInputCharacter( data.ansiChar );
 }
 
-void ImGui_ImplGlfwGL3_FocusCallback( const window::callbacks::ChangeFocusData& data ) {
+void ImGui_ImplGlfwGL3_FocusCallback( void* userData, const window::callbacks::ChangeFocusData& data ) {
     ImGuiIO& io = ImGui::GetIO();
 
     for ( uint32 i = 0; i < 512; ++i ) {
@@ -308,9 +308,9 @@ void ImGuiInit( WindowSystem& window, gfx::RenderDevice& rd ) {
     io.ImeWindowHandle = window.handle;
 #endif // _WIN32
 
-    window.keyCallbacks.push_back( ImGui_ImplGlfwGL3_KeyCallback );
-    window.charCallbacks.push_back( ImGui_ImplGlfwGL3_CharCallback );
-    window.focusCallbacks.push_back( ImGui_ImplGlfwGL3_FocusCallback );
+    window.AddKeyCallback( ImGui_ImplGlfwGL3_KeyCallback, nullptr );
+    window.AddCharCallback( ImGui_ImplGlfwGL3_CharCallback, nullptr );
+    window.AddFocusCallback( ImGui_ImplGlfwGL3_FocusCallback, nullptr );
 #endif // HY_OPENGL
 /*
     glfwSetMouseButtonCallback( window, ImGui_ImplGlfwGL3_MouseButtonCallback );

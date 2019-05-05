@@ -72,6 +72,23 @@ inline void SetupImGuiStyle( bool bStyleDark_ ) {
 }
 
 //////////////////////////////////////////////////////////////////////////
+void NesUI_KeyCallback( void* userData, const window::callbacks::KeyModifiedData& data ) {
+    NesUI* nesui = (NesUI*)userData;
+
+    // Ignore callback if we are not remapping the controller.
+    if ( nesui->buttonToRemapKeyboard == Nes::Controller::Button_Count ) {
+        return;
+    }
+
+    // Get when key is up
+    if ( !data.keyDown ) {
+        if ( data.virtualKey != hydra::input::KEY_ESCAPE ) {
+            nesui->main->emulationOptions.keys0[nesui->buttonToRemapKeyboard] = data.virtualKey;
+        }
+        nesui->buttonToRemapKeyboard = Nes::Controller::Button_Count;
+    }
+}
+
 NesUI::NesUI( MainState* main, Nes& nes ) : nes( nes ), main(main) {
 
     debuggerText = new ImGuiTextBuffer();
@@ -93,6 +110,10 @@ NesUI::NesUI( MainState* main, Nes& nes ) : nes( nes ), main(main) {
     cwd.append( "." );
 
     FindFilesInPath( ".nes", cwd.c_str(), nesRoms, directories );
+}
+
+void NesUI::Init() {
+    main->window->AddKeyCallback( NesUI_KeyCallback, this );
 }
 
 void NesUI::DrawControlWindow() {
@@ -593,6 +614,16 @@ void NesUI::DrawController() {
 
     ImGui::Begin( "Controller", &controller );
 
+    ImGui::Text("Click the button under the labels to remap the corresponding key.");
+    ImGui::Text( "Any key pressed after will be the new one." );
+
+    ImGui::Separator();
+
+    if ( buttonToRemapKeyboard != Nes::Controller::Button_Count ) {
+        ImGui::Text( "Press any key to change the binding of button %s", nes.controllers.kDefaultKeys0Names[buttonToRemapKeyboard] );
+        ImGui::Separator();
+    }
+
     ImGui::Columns( Nes::Controller::Button_Count );
     // Write the controller button names
     for ( size_t i = 0; i < Nes::Controller::Button_Count; ++i ) {
@@ -603,7 +634,7 @@ void NesUI::DrawController() {
     for ( size_t i = 0; i < Nes::Controller::Button_Count; ++i ) {
         cstring keyBindingName = hydra::input::sNames[main->emulationOptions.keys0[i]];
         if ( ImGui::Button( keyBindingName ) ) {
-            nes.controllers.SetButton( 0, (Nes::Controller::Buttons) (i) );
+            buttonToRemapKeyboard = (Nes::Controller::Buttons)i;
         }
 
         ImGui::NextColumn();

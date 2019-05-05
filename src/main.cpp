@@ -416,6 +416,7 @@ void MainState::Init( application::InitContext& context ) {
     renderer->device.EnableDebugOutput( false );
 
     nes.Init( &emulationOptions );
+    nesui.Init();
 
     nes.screenTexture = renderer->fbs->rts[0]->handle;    
 

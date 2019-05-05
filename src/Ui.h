@@ -24,6 +24,8 @@ namespace hydra {
 
         NesUI( MainState* main, Nes& nes );
 
+        void            Init();
+
         void            DrawControlWindow();
         void            DrawDebugger();
         void            DrawCpuStatus();
@@ -66,6 +68,7 @@ namespace hydra {
 
         int             debugPixel[2] = { -1, -1 };
 
+        Nes::Controller::Buttons buttonToRemapKeyboard = Nes::Controller::Button_Count;
         Array<ProfilerSystem::CpuSample> samples;
         Array<uint16>   samplesStack;
 

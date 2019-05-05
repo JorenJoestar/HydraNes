@@ -279,7 +279,7 @@ struct AudioSystemNes : public hydra::UpdateSystem {
     const int VOICE_SAMPLES = SAMPLE_RATE * CHANNELS;
 
     // Triple buffered samples.
-    static const uint32 kBufferSize = 32000;
+    static const uint32 kBufferSize = 96000;
     static const uint32 kBufferCount = 3;
     int16* samples;
     uint8 bufferIndex;

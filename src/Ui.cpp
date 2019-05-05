@@ -593,12 +593,17 @@ void NesUI::DrawController() {
 
     ImGui::Begin( "Controller", &controller );
 
-    ImGui::Columns( 8 );
-    static cstring kLabels[] = { "A", "B", "Select", "Start", "Up", "Down", "Left", "Right" };
-    for ( size_t i = 0; i < 8; ++i ) {
-
-        if ( ImGui::Button( kLabels[i] ) ) {
-            nes.controllers.SetButton( 0, ( Nes::Controller::Buttons ) (i) );
+    ImGui::Columns( Nes::Controller::Button_Count );
+    // Write the controller button names
+    for ( size_t i = 0; i < Nes::Controller::Button_Count; ++i ) {
+        ImGui::Text( "%s", nes.controllers.kDefaultKeys0Names[i] );
+        ImGui::NextColumn();
+    }
+    // Write the actual key bindings
+    for ( size_t i = 0; i < Nes::Controller::Button_Count; ++i ) {
+        cstring keyBindingName = hydra::input::sNames[main->emulationOptions.keys0[i]];
+        if ( ImGui::Button( keyBindingName ) ) {
+            nes.controllers.SetButton( 0, (Nes::Controller::Buttons) (i) );
         }
 
         ImGui::NextColumn();

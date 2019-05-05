@@ -640,16 +640,16 @@ namespace hydra {
                 // ; its last clock, so that next instruction executes
                 // ; before the IRQ.Other instructions would execute the
                 // ; NMI before the next instruction.
-                
+                if ( handleIrq && !prevhandleIrq ) {
+                    handleIrq = false;
+                }
 
                 DummyRead();
                 const uint16 tempAddress = PC + (int8)effectiveAddress;
                 if ( CheckCrossPage( PC, (int8)effectiveAddress ) ) {
                     DummyRead();
                 }
-                else if ( handleIrq && !prevhandleIrq ) {
-                    handleIrq = false;
-                }
+
                 PC = tempAddress;
             }
 
@@ -1310,8 +1310,11 @@ namespace hydra {
                 Button_Up,
                 Button_Down,
                 Button_Left,
-                Button_Right
+                Button_Right,
+                Button_Count
             };
+
+            static cstring kDefaultKeys0Names[Button_Count];
 
             uint32   portdata;
             uint8    registers[2];

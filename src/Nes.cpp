@@ -243,10 +243,9 @@ void Nes::Cpu::HandleInterrupt() {
     Push( GetPS() | PS::FlagsBit_Reserved );
     if ( nmistate ) {
         P.flags.i = 1;
-
-        PC = MemoryReadWord( kNmiVector );
-        // nmi state can be cleared.
         nmistate = 0;
+
+        PC = MemoryReadWord( kNmiVector );        
     }
     else {
         P.flags.i = 1;
@@ -2376,6 +2375,9 @@ uint8 Nes::Apu::Pulse::Output() {
 }
 
 //////////////////////////////////////////////////////////////////////////
+
+cstring Nes::Controller::kDefaultKeys0Names[] = { "A", "B", "Select", "Start", "Up", "Down", "Left", "Right" };
+
 void Nes::Controller::Reset() {
     registers[0] = registers[1] = readBitIndex = 0;
     strobeToggle = 0;

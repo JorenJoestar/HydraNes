@@ -470,17 +470,15 @@ bool MainState::Update( application::UpdateContext& context ) {
         if ( simulationType == type_continuous && nes.cart.IsCartridgeInserted() ) {
 
             // Update controllers
-            static hydra::input::Keys kKeys[] = { hydra::input::KEY_X, hydra::input::KEY_Z, hydra::input::KEY_RSHIFT, hydra::input::KEY_RETURN, hydra::input::KEY_UP, hydra::input::KEY_DOWN, hydra::input::KEY_LEFT, hydra::input::KEY_RIGHT };
-            for ( size_t i = 0; i < 8; ++i ) {
-
-                if ( input->_input.keys.IsKeyDown( kKeys[i] ) ) {
+            // Controller 0 (from the keyboard)
+            for ( size_t i = 0; i < Nes::Controller::Button_Count; ++i ) {
+                if ( input->_input.keys.IsKeyDown( (hydra::input::Keys)emulationOptions.keys0[i] ) ) {
                     nes.controllers.SetButton( 0, (Nes::Controller::Buttons) (i) );
                 }
             }
 
             uint64 currentCpuCycles = nes.cpu.cycles;
             uint32 currentFrame = nes.ppu.frames;
-            
 
             //PrintFormat( "Frame %u\n", currentFrame );
             // Execute 1 frame = execute until ppu changes frame.
@@ -551,6 +549,8 @@ void MainState::Resize( uint16 width, uint16 height ) {
 
 }
 
+static hydra::input::Keys kDefaultKeys0[] = { hydra::input::KEY_X, hydra::input::KEY_Z, hydra::input::KEY_RSHIFT, hydra::input::KEY_RETURN, hydra::input::KEY_UP, hydra::input::KEY_DOWN, hydra::input::KEY_LEFT, hydra::input::KEY_RIGHT };
+
 void MainState::LoadOptions( cstring ini_filename ) {
     FileHandle ini_file;
     OpenFile( ini_filename, "rb", &ini_file );
@@ -564,6 +564,11 @@ void MainState::LoadOptions( cstring ini_filename ) {
         emulationOptions.zoomType = Options::ZOOM_1X;
         emulationOptions.muteAudio = 0;
         emulationOptions.masterVolume = 0.666f;
+
+        for ( size_t i = 0; i < Nes::Controller::Button_Count; i++ ) {
+            emulationOptions.keys0[i] = kDefaultKeys0[0];
+        }
+
         SaveOptions( ini_filename );
 
         return;
@@ -577,6 +582,9 @@ void MainState::LoadOptions( cstring ini_filename ) {
     emulationOptions.zoomType = reader.GetInteger( "Graphics", "graphics_zoom", 0 );
     emulationOptions.muteAudio = reader.GetInteger( "Audio", "audio_mute", 0 );
     emulationOptions.masterVolume = (float)reader.GetReal( "Audio", "audio_master_volume", 0.666f );
+    for ( size_t i = 0; i < Nes::Controller::Button_Count; i++ ) {
+        emulationOptions.keys0[i] = reader.GetInteger( "Input", nes.controllers.kDefaultKeys0Names[i], kDefaultKeys0[i]);
+    }
     fclose( ini_file );
 }
 
@@ -607,6 +615,11 @@ void MainState::SaveOptions( cstring ini_filename ) {
     fprintf_s( ini_file, "[Audio]\n" );
     fprintf_s( ini_file, "audio_mute=%u\n", emulationOptions.muteAudio );
     fprintf_s( ini_file, "audio_master_volume=%f\n", emulationOptions.masterVolume );
+    fprintf_s( ini_file, "[Input]\n" );
+    for ( size_t i = 0; i < Nes::Controller::Button_Count; i++ ) {
+        fprintf_s( ini_file, "%s=%u\n", nes.controllers.kDefaultKeys0Names[i], emulationOptions.keys0[i] );
+        emulationOptions.keys0[i] = kDefaultKeys0[0];
+    }
     fclose( ini_file );
 }
 

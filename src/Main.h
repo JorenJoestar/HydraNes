@@ -73,6 +73,8 @@ struct Options {
     uint32              zoomType : 2;
     uint32              muteAudio : 1;
     uint32              padding : 28;
+
+    uint16              keys0[Nes::Controller::Button_Count];
 }; // struct Options
 
 struct RenderSystemNes;

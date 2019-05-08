@@ -79,6 +79,7 @@ struct Options {
 
 struct RenderSystemNes;
 struct AudioSystemNes;
+struct InputSystemNes;
 
 struct MainState : public application::State {
 
@@ -95,11 +96,11 @@ struct MainState : public application::State {
     Profiler*           previousProfiler;
     uint8               profilerIndex = 0;
 
-    input::InputSystem* input;
     WindowSystem*       window;
     TimeSystem*         time;
     RenderSystemNes*    renderer;
     AudioSystemNes*     audio;
+    InputSystemNes*     input;
 
     bool                cpuTestMode;
     FileHandle          cpuTestFile;

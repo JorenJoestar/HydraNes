@@ -2,6 +2,7 @@
 #include "Hydra/Kernel/Input.h"
 
 #include <string>
+#include <dbt.h>
 
 namespace hydra {
 
@@ -198,7 +199,7 @@ LRESULT CALLBACK WndProc( HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam ) {
 
         case WM_QUIT:
             window->flags.set( WindowSystem::Flags_requestExit );
-            window->callbacksActivationMask.set( window::callbacks::Type_RequestExit_mask );
+            window->callbacksActivationMask.set( window::callbacks::Type_RequestExit );
 
             break;
 
@@ -206,7 +207,7 @@ LRESULT CALLBACK WndProc( HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam ) {
             DestroyWindow( hWnd );
 
             window->flags.set( WindowSystem::Flags_requestExit );
-            window->callbacksActivationMask.set( window::callbacks::Type_RequestExit_mask );
+            window->callbacksActivationMask.set( window::callbacks::Type_RequestExit );
 
             break;
 
@@ -225,7 +226,7 @@ LRESULT CALLBACK WndProc( HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam ) {
                 window->_eventStream.AddEvent( &event );
 
                 window->flags.set( WindowSystem::Flags_focus );
-                window->callbacksActivationMask.set( window::callbacks::Type_ChangeFocus_Mask );
+                window->callbacksActivationMask.set( window::callbacks::Type_ChangeFocus );
                 window->focusData.inFocus = false;
             }
             break;
@@ -248,8 +249,19 @@ LRESULT CALLBACK WndProc( HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam ) {
             int32 newHeight = HIWORD( lParam );
             window::events::Resize event{ (uint16)newWidth, (uint16)newHeight };
             window->_eventStream.AddEvent( &event );
+            window->callbacksActivationMask.set( window::callbacks::Type_WindowResize );
 
             window->isResizing = false;
+
+            break;
+        }
+
+        case WM_DEVICECHANGE: {
+            // TODO: for gamepad wParam is always set to 7.
+            // Just fire the callback and let the application handle this.
+            window::events::DeviceChange deviceChange{ 0, 0 };
+            window->_eventStream.AddEvent( &deviceChange );
+            window->callbacksActivationMask.set( window::callbacks::Type_ChangeDevice );
 
             break;
         }
@@ -327,7 +339,7 @@ LRESULT CALLBACK WndProc( HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam ) {
 
                         if ( ToAscii( virtualKey, scanCode, lpKeyboard, &wideChar, 0 ) == 1 ) {
                             //PrintFormat( "KeyChar %c\n", (char)wideChar );
-                            window->callbacksActivationMask.set( window::callbacks::Type_CharWritten_mask );
+                            window->callbacksActivationMask.set( window::callbacks::Type_CharWritten );
                             window->charCallbackData.ansiChar = (char)wideChar;
                         }
                     }
@@ -438,7 +450,7 @@ LRESULT CALLBACK WndProc( HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam ) {
                     window->_eventStream.AddEvent( &inputEvent );
 
                     // Add callback data
-                    window->callbacksActivationMask.set( window::callbacks::Type_KeyModified_mask );
+                    window->callbacksActivationMask.set( window::callbacks::Type_KeyModified );
                     window->keyCallbackData.keyDown = !wasUp;
                     window->keyCallbackData.virtualKey = (uint8)virtualKey;
 
@@ -473,7 +485,7 @@ void InitRawInput( WindowHandle hWnd ) {
 
 
 static const char* sStrings[] = {
-    "Type_RequestExit", "Type_CharWritten", "Type_KeyModified", "Type_Resize"
+    "Type_RequestExit", "Type_CharWritten", "Type_KeyModified", "Type_Resize", "Type_ChangeFocus", "Type_DeviceChange"
 };
 
 cstring window::callbacks::ToString( window::callbacks::Types e ) {
@@ -592,7 +604,7 @@ void WindowSystem::Update() {
 
 
 void WindowSystem::ExecuteCallbacks() {
-    if ( callbacksActivationMask.test(window::callbacks::Type_RequestExit_mask) ) {
+    if ( callbacksActivationMask.test(window::callbacks::Type_RequestExit ) ) {
 
         PrintFormat( "Requesting exit.\n" );
         for ( uint32 i = 0; i < exitCallbacks.size(); ++i ) {
@@ -600,43 +612,52 @@ void WindowSystem::ExecuteCallbacks() {
             callback( exitCallbacksUserData[i] );
         }
 
-        callbacksActivationMask.reset(window::callbacks::Type_RequestExit_mask);
+        callbacksActivationMask.reset(window::callbacks::Type_RequestExit );
     }
 
-    if ( callbacksActivationMask.test( window::callbacks::Type_CharWritten_mask ) ) {
+    if ( callbacksActivationMask.test( window::callbacks::Type_CharWritten ) ) {
         for ( uint32 i = 0; i < charCallbacks.size(); ++i ) {
             window::callbacks::CharModified& callback = charCallbacks[i];
             callback( charCallbackUserData[i], charCallbackData );
         }
 
-        callbacksActivationMask.reset( window::callbacks::Type_CharWritten_mask );
+        callbacksActivationMask.reset( window::callbacks::Type_CharWritten );
     }
 
-    if ( callbacksActivationMask.test( window::callbacks::Type_KeyModified_mask ) ) {
+    if ( callbacksActivationMask.test( window::callbacks::Type_KeyModified ) ) {
         for ( uint32 i = 0; i < keyCallbacks.size(); ++i ) {
             window::callbacks::KeyModified& callback = keyCallbacks[i];
             callback( keyCallbackUserData[i], keyCallbackData );
         }
 
-        callbacksActivationMask.reset( window::callbacks::Type_KeyModified_mask );
+        callbacksActivationMask.reset( window::callbacks::Type_KeyModified );
     }
 
-    if ( callbacksActivationMask.test( window::callbacks::Type_WindowResize_mask ) ) {
+    if ( callbacksActivationMask.test( window::callbacks::Type_WindowResize ) ) {
         for ( uint32 i = 0; i < resizeCallbacks.size(); ++i ) {
             window::callbacks::WindowResized& callback = resizeCallbacks[i];
             callback( resizeCallbackUserData[i], resizeData );
         }
 
-        callbacksActivationMask.reset( window::callbacks::Type_WindowResize_mask );
+        callbacksActivationMask.reset( window::callbacks::Type_WindowResize );
     }
 
-    if ( callbacksActivationMask.test( window::callbacks::Type_ChangeFocus_Mask ) ) {
+    if ( callbacksActivationMask.test( window::callbacks::Type_ChangeFocus ) ) {
         for ( uint32 i = 0; i < focusCallbacks.size(); ++i ) {
             window::callbacks::ChangeFocus& callback = focusCallbacks[i];
             callback( focusCallbackUserData[i], focusData );
         }
 
-        callbacksActivationMask.reset( window::callbacks::Type_ChangeFocus_Mask );
+        callbacksActivationMask.reset( window::callbacks::Type_ChangeFocus );
+    }
+
+    if ( callbacksActivationMask.test( window::callbacks::Type_ChangeDevice ) ) {
+        for ( uint32 i = 0; i < deviceCallbacks.size(); ++i ) {
+            window::callbacks::ChangeDevice& callback = deviceCallbacks[i];
+            callback( deviceCallbackUserData[i], deviceData );
+        }
+
+        callbacksActivationMask.reset( window::callbacks::Type_ChangeDevice );
     }
 }
 
@@ -663,6 +684,11 @@ void WindowSystem::AddResizeCallback( window::callbacks::WindowResized callback,
 void WindowSystem::AddFocusCallback( window::callbacks::ChangeFocus callback, void * userData ) {
     focusCallbacks.push_back( callback );
     focusCallbackUserData.push_back( userData );
+}
+
+void WindowSystem::AddDeviceCallback( window::callbacks::ChangeDevice callback, void* userData ) {
+    deviceCallbacks.push_back( callback );
+    deviceCallbackUserData.push_back( userData );
 }
 
 //////////////////////////////////////////////////////////////////////////

@@ -1336,6 +1336,9 @@ namespace hydra {
         void        LoadRom( cstring path );
         void        SaveSRAM();
 
+        void        SaveState( cstring path );
+        void        LoadState( cstring path );
+
         // Memory mapping:
         // Both cpu and ppu read/write through a mapper
         Cpu         cpu;

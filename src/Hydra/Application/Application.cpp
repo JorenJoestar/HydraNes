@@ -67,7 +67,7 @@ void InputUpdateSystem::Update() {
                                 i._input.keys.KeyDown[j] = false;
                                 i._input.keys.LastKeyDown[j] = false;
 
-                                w.callbacksActivationMask.set( window::callbacks::Type_KeyModified_mask );
+                                w.callbacksActivationMask.set( window::callbacks::Type_KeyModified );
                                 w.keyCallbackData.keyDown = false;
                                 w.keyCallbackData.virtualKey = (uint8)j;
                             }

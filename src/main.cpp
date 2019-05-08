@@ -17,6 +17,7 @@
 
 #include <stdlib.h>
 #include <xaudio2.h>
+#include <Xinput.h>
 
 #include "INIReader.h"
 
@@ -360,6 +361,123 @@ struct AudioSystemNes : public hydra::UpdateSystem {
     }
 };
 
+struct InputSystemNes : public hydra::UpdateSystem {
+
+    Nes*            nes = nullptr;
+    input::InputSystem* inputKeys = nullptr;
+    const Options&  options;
+
+    uint8           enabledGamepadBitset = 0;
+    uint8           player1Index = 0;
+    XINPUT_STATE    gamepadStates[XUSER_MAX_COUNT];
+
+    InputSystemNes( Nes* nes, const Options& options, uint32 order ) : hydra::UpdateSystem( order ), nes( nes ), options(options) {
+
+        inputKeys = new input::InputSystem( 0 );
+    }
+
+    void Init() override {
+
+        inputKeys->Init();
+
+        ScanActiveGamepads();
+    }
+
+    void Terminate() override {
+        inputKeys->Terminate();
+    }
+
+    void Update() override {
+
+        inputKeys->Update();
+
+        for ( DWORD i = 0; i < XUSER_MAX_COUNT; ++i ) {
+            if ( (enabledGamepadBitset & (1 << i)) == (1 << i) ) {
+                XInputGetState( i, &gamepadStates[i] );
+            }
+        }
+    }
+
+    void ScanActiveGamepads() {
+        DWORD dwResult;
+        for ( DWORD i = 0; i < XUSER_MAX_COUNT; ++i ) {
+            XINPUT_STATE state;
+            ZeroMemory( &state, sizeof( XINPUT_STATE ) );
+            dwResult = XInputGetState( i, &state );
+
+            if ( dwResult == ERROR_SUCCESS ) {
+                enabledGamepadBitset |= 1 << i;
+            } else if ( dwResult == ERROR_DEVICE_NOT_CONNECTED ) {
+                enabledGamepadBitset &= ~(1 << i);
+            }
+        }
+    }
+
+    bool IsButtonDown( Nes::Controller::Buttons button ) const {
+
+        if ( inputKeys->_input.keys.IsKeyDown( (hydra::input::Keys)options.keys0[button] ) ) {
+            return true;
+        }
+
+        if ( !enabledGamepadBitset ) {
+            return false;
+        }
+
+        switch ( button ) {
+            case Nes::Controller::Button_A:
+            {
+                return (gamepadStates[player1Index].Gamepad.wButtons & XINPUT_GAMEPAD_A) == XINPUT_GAMEPAD_A;
+                break;
+            }
+            case Nes::Controller::Button_B:
+            {
+                return (gamepadStates[player1Index].Gamepad.wButtons & XINPUT_GAMEPAD_X) == XINPUT_GAMEPAD_X;
+                break;
+            }
+            case Nes::Controller::Button_Select:
+            {
+                return (gamepadStates[player1Index].Gamepad.wButtons & XINPUT_GAMEPAD_BACK) == XINPUT_GAMEPAD_BACK;
+                break;
+            }
+            case Nes::Controller::Button_Start:
+            {
+                return (gamepadStates[player1Index].Gamepad.wButtons & XINPUT_GAMEPAD_START) == XINPUT_GAMEPAD_START;
+                break;
+            }
+            case Nes::Controller::Button_Up:
+            {
+                return ((gamepadStates[player1Index].Gamepad.wButtons & XINPUT_GAMEPAD_DPAD_UP) == XINPUT_GAMEPAD_DPAD_UP) || (gamepadStates[player1Index].Gamepad.sThumbLY > XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE);
+                break;
+            }
+            case Nes::Controller::Button_Down:
+            {
+                return ((gamepadStates[player1Index].Gamepad.wButtons & XINPUT_GAMEPAD_DPAD_DOWN) == XINPUT_GAMEPAD_DPAD_DOWN) || (gamepadStates[player1Index].Gamepad.sThumbLY < -XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE);
+                break;
+            }
+            case Nes::Controller::Button_Left:
+            {
+                return ((gamepadStates[player1Index].Gamepad.wButtons & XINPUT_GAMEPAD_DPAD_LEFT) == XINPUT_GAMEPAD_DPAD_LEFT) || (gamepadStates[player1Index].Gamepad.sThumbLX < -XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE);
+                break;
+            }
+            case Nes::Controller::Button_Right:
+            {
+                return ((gamepadStates[player1Index].Gamepad.wButtons & XINPUT_GAMEPAD_DPAD_RIGHT) == XINPUT_GAMEPAD_DPAD_RIGHT) || (gamepadStates[player1Index].Gamepad.sThumbLX > XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE);
+                break;
+            }
+            default:
+            {
+                break;
+            }
+        }
+        return false;
+    }
+};
+
+
+void InputSystemDeviceChangedCallback( void* userData, const window::callbacks::ChangeDeviceData& data ) {
+    InputSystemNes* input = (InputSystemNes*)userData;
+    input->ScanActiveGamepads();
+}
 
 //////////////////////////////////////////////////////////////////////////
 static cstring kIniFilename = "hydra_nes.ini";
@@ -398,11 +516,13 @@ void MainState::Init( application::InitContext& context ) {
     window->AddRequestExitCallback( SetExit, &hydraNesApplication );
     window->AddResizeCallback( ResizeApplication, &hydraNesApplication );
 
-    input = engine->AddUpdate<input::InputSystem>( ord_input );
+    input = engine->AddUpdate<InputSystemNes>( &nes, emulationOptions, ord_input );
+    window->AddDeviceCallback( InputSystemDeviceChangedCallback, input );
+
     time = engine->AddUpdate<TimeSystem>( ord_time );
     audio = engine->AddUpdate<AudioSystemNes>( &nes, ord_audio );
 
-    application::InputUpdateSystem::Init inInit{ *window, *input };
+    application::InputUpdateSystem::Init inInit{ *window, *(input->inputKeys) };
     engine->AddUpdate<application::InputUpdateSystem>( inInit, ord_inputupdate );
 
     renderer = engine->AddRender<RenderSystemNes>( window, ord_renderer );
@@ -462,7 +582,7 @@ bool MainState::Update( application::UpdateContext& context ) {
 
     window->ExecuteCallbacks();
 
-    ImGuiNewFrame(*window, *input, renderer->device);
+    ImGuiNewFrame(*window, *(input->inputKeys), renderer->device);
 
     fpsValues.AddValue( time->_deltaMs / 1000.0f );
 
@@ -473,10 +593,9 @@ bool MainState::Update( application::UpdateContext& context ) {
     else {
         if ( simulationType == type_continuous && nes.cart.IsCartridgeInserted() ) {
 
-            // Update controllers
-            // Controller 0 (from the keyboard)
+            // Update controllers input
             for ( size_t i = 0; i < Nes::Controller::Button_Count; ++i ) {
-                if ( input->_input.keys.IsKeyDown( (hydra::input::Keys)emulationOptions.keys0[i] ) ) {
+                if (input->IsButtonDown( (Nes::Controller::Buttons) (i) ) ) {
                     nes.controllers.SetButton( 0, (Nes::Controller::Buttons) (i) );
                 }
             }
@@ -587,7 +706,7 @@ void MainState::LoadOptions( cstring ini_filename ) {
     emulationOptions.muteAudio = reader.GetInteger( "Audio", "audio_mute", 0 );
     emulationOptions.masterVolume = (float)reader.GetReal( "Audio", "audio_master_volume", 0.666f );
     for ( size_t i = 0; i < Nes::Controller::Button_Count; i++ ) {
-        emulationOptions.keys0[i] = reader.GetInteger( "Input", nes.controllers.kDefaultKeys0Names[i], kDefaultKeys0[i]);
+        emulationOptions.keys0[i] = (uint16)reader.GetInteger( "Input", nes.controllers.kDefaultKeys0Names[i], kDefaultKeys0[i]);
     }
     fclose( ini_file );
 }

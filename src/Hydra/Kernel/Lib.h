@@ -215,13 +215,13 @@ namespace hydra {
     namespace window {
         namespace callbacks {
             enum Types {
-                Type_RequestExit, Type_CharWritten, Type_KeyModified, Type_WindowResize, Type_ChangeFocus
+                Type_RequestExit, Type_CharWritten, Type_KeyModified, Type_WindowResize, Type_ChangeFocus, Type_ChangeDevice
             };
 
-            enum Mask {
-                Type_RequestExit_mask = 1 << 0, Type_CharWritten_mask = 1 << 1, Type_KeyModified_mask = 1 << 2,
-                Type_WindowResize_mask = 1 << 3, Type_ChangeFocus_Mask = 1 << 4
-            };
+            //enum Mask {
+            //    Type_RequestExit_mask = 1 << 0, Type_CharWritten_mask = 1 << 1, Type_KeyModified_mask = 1 << 2,
+            //    Type_WindowResize_mask = 1 << 3, Type_ChangeFocus_Mask = 1 << 4, Type_ChangeDevice_Mask = 1 << 5
+            //};
 
             static cstring              ToString( Types e );
 
@@ -244,16 +244,22 @@ namespace hydra {
                 uint8                   inFocus;
             };
 
+            struct ChangeDeviceData {
+                uint8                   deviceRemoved;
+                uint8                   deviceAdded;
+            };
+
             using RequestExit = void (*)( void* userData );
             using KeyModified = void (*)( void* userData, const KeyModifiedData& );
             using CharModified = void (*)(void* userData, const CharModifiedData& );
-            using WindowResized = void( *)( void* userData, const WindowResizeData& );
-            using ChangeFocus = void( *)( void* userData, const ChangeFocusData&);
+            using WindowResized = void (*)( void* userData, const WindowResizeData& );
+            using ChangeFocus = void (*)( void* userData, const ChangeFocusData& );
+            using ChangeDevice = void( *)( void* userData, const ChangeDeviceData& );
         } // namespace callbacks
 
         namespace events {
             enum Types {
-                Event_KeyInput, Event_MouseMove, Event_MouseClick, Event_MouseWheel, Event_Resize, Event_Focus
+                Event_KeyInput, Event_MouseMove, Event_MouseClick, Event_MouseWheel, Event_Resize, Event_Focus, Event_Device
             };
 
             struct Resize {
@@ -299,6 +305,13 @@ namespace hydra {
                 static uint32           Type() { return Event_Focus; }
             };
 
+            struct DeviceChange {
+                uint8                   deviceRemoved;
+                uint8                   deviceAdded;
+
+                static uint32           Type() { return Event_Device; }
+            };
+
         } // namespace Events
     } // namespace window
 
@@ -315,6 +328,7 @@ namespace hydra {
         void                            AddCharCallback( window::callbacks::CharModified callback, void* userData );
         void                            AddResizeCallback( window::callbacks::WindowResized callback, void* userData );
         void                            AddFocusCallback( window::callbacks::ChangeFocus callback, void* userData );
+        void                            AddDeviceCallback( window::callbacks::ChangeDevice callback, void* userData );
         
         ProcessHandle                   processHandle;
         WindowHandle                    handle;
@@ -353,6 +367,10 @@ namespace hydra {
         Array<window::callbacks::ChangeFocus>   focusCallbacks;
         window::callbacks::ChangeFocusData      focusData;
         Array<void*>                            focusCallbackUserData;
+
+        Array<window::callbacks::ChangeDevice>  deviceCallbacks;
+        window::callbacks::ChangeDeviceData     deviceData;
+        Array<void*>                            deviceCallbackUserData;
 
         Flag                                    callbacksActivationMask;
     };

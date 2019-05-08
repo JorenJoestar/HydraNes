@@ -2510,6 +2510,13 @@ void Nes::SaveSRAM() {
     }
 }
 
+void Nes::SaveState( cstring path ) {
+
+}
+
+void Nes::LoadState( cstring path ) {
+
+}
 
 //////////////////////////////////////////////////////////////////////////
 #if defined(NES_SHOW_ASM)

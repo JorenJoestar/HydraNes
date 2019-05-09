@@ -1796,8 +1796,10 @@ void Nes::Screen::WritePixel( uint16 scanline, uint16 pixel, uint32 color ) {
 }
 
 //////////////////////////////////////////////////////////////////////////
-const uint8 apuLenghtCounterTable[] = { 10, 254, 20,  2, 40,  4, 80,  6, 160,  8, 60, 10, 14, 12, 26, 14,
-                                        12, 16, 24, 18, 48, 20, 96, 22, 192, 24, 72, 26, 16, 28, 32, 30 };
+const uint8 apuLenghtCounterTable[] = { 10, 254, 20,  2, 40,  4, 80,  6, 
+                                        161,  8, 60, 10, 14, 12, 26, 14,
+                                        12, 16, 24, 18, 48, 20, 96, 22, 
+                                        192, 24, 72, 26, 16, 28, 32, 30 };
 
 // Polynomial approximation of channels outputs
 float apuPulseTable[31];
@@ -1898,8 +1900,6 @@ void Nes::Apu::Tick() {
         dmc.TickTimer();
     }
 
-    ++frameCycle;
-    
     // Update components
     switch (frameCounter.mode) {
         case 0: {
@@ -1909,8 +1909,7 @@ void Nes::Apu::Tick() {
                 case 7459: {
                     // Step 1
                     // 7459  Clock linear
-                    pulse1.TickEnvelope();
-                    pulse2.TickEnvelope();
+                    TickQuarterFrame();
 
                     break;
                 }
@@ -1918,11 +1917,7 @@ void Nes::Apu::Tick() {
                 case 14915: {
                     // Step 2
                     // 14915 Clock linear & length
-                    pulse1.TickEnvelope();
-                    pulse2.TickEnvelope();
-
-                    pulse1.TickLengthCounter();
-                    pulse2.TickLengthCounter();
+                    TickHalfFrame();
 
                     break;
                 }
@@ -1930,8 +1925,7 @@ void Nes::Apu::Tick() {
                 case 22373: {
                     // Step 3
                     // 22373 Clock linear
-                    pulse1.TickEnvelope();
-                    pulse2.TickEnvelope();
+                    TickQuarterFrame();
                     
                     break;
                 }
@@ -1945,11 +1939,7 @@ void Nes::Apu::Tick() {
                 case 29831: {
                     // Step 4
                     // 29831 Clock linear & length and set frame irq
-                    pulse1.TickEnvelope();
-                    pulse2.TickEnvelope();
-
-                    pulse1.TickLengthCounter();
-                    pulse2.TickLengthCounter();
+                    TickHalfFrame();
 
                     frameCounter.TriggerIRQ( cpu );
 
@@ -1974,8 +1964,7 @@ void Nes::Apu::Tick() {
                 case 7459: {
                     // Step 1
                     // 7459  Clock linear
-                    pulse1.TickEnvelope();
-                    pulse2.TickEnvelope();
+                    TickQuarterFrame();
 
                     break;
                 }
@@ -1983,11 +1972,7 @@ void Nes::Apu::Tick() {
                 case 14915: {
                     // Step 2
                     // 14915 Clock linear & length
-                    pulse1.TickEnvelope();
-                    pulse2.TickEnvelope();
-
-                    pulse1.TickLengthCounter();
-                    pulse2.TickLengthCounter();
+                    TickHalfFrame();
 
                     break;
                 }
@@ -1995,8 +1980,7 @@ void Nes::Apu::Tick() {
                 case 22373: {
                     // Step 3
                     // 22373 Clock linear
-                    pulse1.TickEnvelope();
-                    pulse2.TickEnvelope();
+                    TickQuarterFrame();
                     
                     break;
                 }
@@ -2009,11 +1993,7 @@ void Nes::Apu::Tick() {
                 case 37283: {
                     // Step 4
                     // 29831 Clock linear & length and set frame irq
-                    pulse1.TickEnvelope();
-                    pulse2.TickEnvelope();
-
-                    pulse1.TickLengthCounter();
-                    pulse2.TickLengthCounter();
+                    TickHalfFrame();
 
                     break;
                 }
@@ -2037,6 +2017,8 @@ void Nes::Apu::Tick() {
 
         previousSample = soundValue;
     }
+
+    ++frameCycle;
 
     switch (frameCounter.mode) {
         case 0: {
@@ -2064,22 +2046,32 @@ void Nes::Apu::Tick() {
 
         if ( frameCounter.dataWriteDelay == 0 ) {
 
-            frameCounter.mode = (frameCounter.data & FrameCounter::RegisterFlags_Mode) ? 1 : 0;
+            frameCounter.mode = (frameCounter.data & FrameCounter::RegisterFlags_Mode) == FrameCounter::RegisterFlags_Mode ? 1 : 0;
 
             if ( frameCounter.mode == 1 ) {
                 // Clock immediately
-                pulse1.TickEnvelope();
-                pulse1.TickLengthCounter();
-                pulse1.TickSweep();
-
-                pulse2.TickEnvelope();
-                pulse2.TickLengthCounter();
-                pulse2.TickSweep();
+                TickHalfFrame();
             }
         }
     }
 
 #endif // NES_EXTERNAL_APU
+}
+
+void Nes::Apu::TickHalfFrame() {
+    pulse1.TickEnvelope();
+    pulse2.TickEnvelope();
+
+    pulse1.TickLengthCounter();
+    pulse2.TickLengthCounter();
+
+    pulse1.TickSweep();
+    pulse2.TickSweep();
+}
+
+void Nes::Apu::TickQuarterFrame() {
+    pulse1.TickEnvelope();
+    pulse2.TickEnvelope();
 }
 
 void Nes::Apu::EndFrame(uint32 count) {
@@ -2090,11 +2082,14 @@ void Nes::Apu::EndFrame(uint32 count) {
         blipBuffer->end_frame( count );
     }
 #else
-    {
-        while (count--) {
+    
+    int16 remainingCycles = cpu->frameCycles - frameCycle;
+    if ( remainingCycles > 0 ) {
+        while ( remainingCycles-- ) {
             Tick();
         }
     }
+    
 #endif
 }
 
@@ -2161,22 +2156,12 @@ void Nes::Apu::CpuWrite( uint16 address, uint8 data ) {
             break;
 
         case 0x4002:
-            // Low 8 bit of timerPeriod
-            pulse1.timerPeriod = (0xF0 & pulse1.timerPeriod) | data;
+            pulse1.WriteLowTimer( data );
             break;
 
-        case 0x4003: {
-            // Hight 3 bit of timerPeriod
-            pulse1.timerPeriod = (pulse1.timerPeriod & 0x0F) | ((data & 0x7) << 8);
-            // 5 bit length counter load
-            if ( enabledChannels.flags.pulse1  ) {
-                uint8 lengthCounterIndex = (data >> 3) & 0x1F;
-                pulse1.lengthCounter = apuLenghtCounterTable[lengthCounterIndex];
-            }
-            pulse1.envelopeStart = true;
-            pulse1.dutyCycle = 0;
+        case 0x4003:
+            pulse1.WriteTimerLength( data, enabledChannels.flags.pulse1 );
             break;
-        }
         case 0x4004:
             pulse2.WriteControl( data );
             break;
@@ -2186,22 +2171,12 @@ void Nes::Apu::CpuWrite( uint16 address, uint8 data ) {
             break;
 
         case 0x4006:
-            // Low 8 bit of timerPeriod
-            pulse2.timerPeriod = (0xF0 & pulse2.timerPeriod) | data;
+            pulse2.WriteLowTimer( data );
             break;
 
-        case 0x4007: {
-            // Hight 3 bit of timerPeriod
-            pulse2.timerPeriod = (pulse2.timerPeriod & 0x0F) | ((data & 0x7) << 8);
-            // 5 bit length counter load
-            if ( enabledChannels.flags.pulse2 ) {
-                uint8 lengthCounterIndex = (data >> 3) & 0x1F;
-                pulse2.lengthCounter = apuLenghtCounterTable[lengthCounterIndex];
-            }
-            pulse2.envelopeStart = true;
-            pulse2.dutyCycle = 0;
+        case 0x4007:
+            pulse2.WriteTimerLength( data, enabledChannels.flags.pulse2 );
             break;
-        }
 
         case $4010_DMC_Status: {
             dmc.CpuWrite( address, data );
@@ -2492,6 +2467,24 @@ void Nes::Apu::Pulse::WriteControl( uint8 data ) {
 void Nes::Apu::Pulse::WriteSweep( uint8 data ) {
     sweep.data = data;
     sweepStart = true;
+}
+
+void Nes::Apu::Pulse::WriteLowTimer( uint8 data ) {
+    // Low 8 bit of timerPeriod
+    timerPeriod = (0xF0 & timerPeriod) | data;
+}
+
+void Nes::Apu::Pulse::WriteTimerLength( uint8 data, uint8 enabled ) {
+    // Hight 3 bit of timerPeriod
+    timerPeriod = (timerPeriod & 0x0F) | ((data & 0x7) << 8);
+    // 5 bit length counter load
+    if ( enabled ) {
+        uint8 lengthCounterIndex = (data >> 3) & 0x1F;
+        lengthCounter = apuLenghtCounterTable[lengthCounterIndex];
+    }
+    envelopeStart = true;
+    timer = timerPeriod;
+    dutyCycle = 0;
 }
 
 void Nes::Apu::Pulse::TickTimer() {

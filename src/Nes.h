@@ -1197,6 +1197,8 @@ namespace hydra {
 
                 void                WriteControl( uint8 data );
                 void                WriteSweep( uint8 data );
+                void                WriteLowTimer( uint8 data );
+                void                WriteTimerLength( uint8 data, uint8 enabled  );
 
 				void				TickTimer();
 				void				TickLengthCounter();
@@ -1301,6 +1303,9 @@ namespace hydra {
             void                    Init(Cpu* cpu);
             void                    Reset();
             void                    Tick();
+
+            void                    TickHalfFrame();
+            void                    TickQuarterFrame();
 
             void                    EndFrame(uint32 count);
 

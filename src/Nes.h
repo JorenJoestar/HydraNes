@@ -13,7 +13,7 @@
     #define NES_TEST_PPU_CYCLE
 #endif // HY_DEBUG
 
-#define NES_EXTERNAL_APU
+//#define NES_EXTERNAL_APU
 
 struct Options;
 
@@ -380,6 +380,7 @@ namespace hydra {
             uint8       handleIrq, prevhandleIrq;
 
             uint16      dmaCounterSprite;
+            uint8       dmcStallCounter;
 
             static const uint32 kRamSize = 0x800;
 
@@ -420,6 +421,7 @@ namespace hydra {
             void        HandleInterrupt();
 
             void        ExecuteSpriteDMA( uint8 offset );
+            void        LoadDMCSample();
 
 #if defined(NES_SHOW_ASM)
             void        CpuDisassembleInit();
@@ -1160,6 +1162,15 @@ namespace hydra {
         //////////////////////////////////////////////////////////////////////////
         struct Apu {
 
+            enum Registers {
+                $4010_DMC_Status = 0x4010,
+                $4011_DMC_LoadCounter = 0x4011,
+                $4012_DMC_SampleAddress = 0x4012,
+                $4013_DMC_SampleLength = 0x4013,
+                $4015_Status = 0x4015,
+                $4017_FrameCounter = 0x4017
+            };
+
             struct Pulse {
 
                 union Control {
@@ -1220,7 +1231,41 @@ namespace hydra {
             };
 
             struct DeltaModulationChannel {
-                uint8               irq;
+                enum RegisterFlags {
+                    RegisterFlags_Loop = 1 << 6,
+                    RegisterFlags_IRQ = 1 << 7
+                };
+
+                uint8               irqEnabled;
+                uint8               isLooping;
+                uint8               needSamples;
+                uint8               silence;
+                int8                outputCycle;
+                int8                outputLevel;
+
+                uint8               period;
+                uint8               loadCounter;
+                
+                uint16              sampleAddress;
+                uint16              currentSampleAddress;
+
+                uint16              sampleLength;
+                uint16              currentSampleLength;
+
+                uint8               currentSample;
+                uint8               nextSample;
+
+                Cpu*                cpu;
+
+                void                Reset();
+
+                void                Enable( uint8 value );
+                void                TickTimer();
+
+                void                StartPlayingSample();
+                void                ReadNextSample();
+
+                void                CpuWrite( uint16 address, uint8 data );
             };
 
             union EnabledChannels {
@@ -1253,11 +1298,6 @@ namespace hydra {
                 void                Reset();
             };
 
-            enum Registers {
-                $4015_Status        = 0x4015,
-                $4017_FrameCounter  = 0x4017
-            };
-
             void                    Init(Cpu* cpu);
             void                    Reset();
             void                    Tick();
@@ -1270,6 +1310,8 @@ namespace hydra {
 
             uint8                   CpuRead( uint16 address );
             void                    CpuWrite( uint16 address, uint8 data );
+
+            void                    ReadDMCSample();
 
             float                   OutputSound();
 

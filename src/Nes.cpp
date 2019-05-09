@@ -150,8 +150,11 @@ void Nes::Cpu::Reset() {
     opCode = 0;
     opAddress = 0;
 
-    nmistate = irqstate = dmaCounterSprite = 0;
+    nmistate = irqstate = 0;
+    dmaCounterSprite = 0;
+    dmcStallCounter = 0;
 
+    // TODO: support PAL.
     for ( uint32 i = 0; i < 28; ++i ) {
         ppu->Tick();
     }
@@ -173,12 +176,20 @@ void Nes::Cpu::Tick() {
     ++cycles;
     ++frameCycles;
 
+    if ( dmcStallCounter ) {
+        --dmcStallCounter;
+
+        if ( dmcStallCounter == 0 ) {
+            apu->ReadDMCSample();
+        }
+    }
+
     ppu->Tick();
     apu->Tick();
     // mapper tick
 
-    // update interrupts
-    if ( dmaCounterSprite == 0 ) {
+    // Update interrupts only if no DMA/stall is in progress.
+    if ( dmaCounterSprite == 0 && dmcStallCounter == 0 ) {
         prevhandleIrq = handleIrq;
         handleIrq = nmistate || (P.flags.i == 0 && irqstate);
     }
@@ -197,13 +208,11 @@ void Nes::Cpu::MemoryWrite( uint16 address, uint8 data ) {
 }
 
 void Nes::Cpu::Push( uint8 data ) {
-    MemoryWrite(S | 0x100, data);
-    S--;
+    MemoryWrite(S-- | 0x100, data);
 }
 
 uint8 Nes::Cpu::Pop() {
-    S++;
-    return MemoryRead(S | 0x100);
+    return MemoryRead(++S | 0x100);
 }
 
 void Nes::Cpu::SetZeroOrNegativeFlags( uint8 value ) {
@@ -283,6 +292,10 @@ void Nes::Cpu::ExecuteSpriteDMA( uint8 offset ) {
 
         --dmaCounterSprite;
     }
+}
+
+void Nes::Cpu::LoadDMCSample() {
+    dmcStallCounter = 4;
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -947,7 +960,6 @@ uint8 Nes::MemoryController::CpuRead( uint16 address ) {
 
         case 0x4016: {
             return controllers->ReadState();
-
             break;
         }
                      
@@ -988,7 +1000,7 @@ void Nes::MemoryController::CpuWrite( uint16 address, uint8 data ) {
         }
 
         case 0x4015:
-        case 0x4017:{
+        case 0x4017: {
             apu->CpuWrite( address, data );
             return;
             break;
@@ -1797,6 +1809,8 @@ static const uint32 SampleRate = 44100;
 void Nes::Apu::Init( Cpu* cpu ) {
     this->cpu = cpu;
 
+    dmc.cpu = cpu;
+
     volume = 0.1f;
     Mute( true );
 
@@ -1846,9 +1860,10 @@ void Nes::Apu::Reset() {
         apuTNDTable[i] = 163.67f / (24329.0f / float( i ) + 100);
     }
 
-	frameCycle = 0;
+    frameCycle = 0;
 
     frameCounter.Reset();
+    dmc.Reset();
 }
 
 void Nes::Apu::Tick() {
@@ -1857,189 +1872,191 @@ void Nes::Apu::Tick() {
         externalApu->run_until( cpu->frameCycles - 1 );
     }
 #else
-	// f = set interrupt flag
-	// l = clock length counters and sweep units
-	// e = clock envelopes and triangle's linear counter
-	// 
-	// mode 0: 4 - step  effective rate(approx)
-	// -------------------------------------- -
-	// ---f      60 Hz
-	// - l - l     120 Hz
-	// e e e e     240 Hz
-	// 
-	// mode 1: 5 - step  effective rate(approx)
-	// -------------------------------------- -
-	// -----(interrupt flag never set)
-	// l - l - -96 Hz
-	// e e e e - 192 Hz
+    // f = set interrupt flag
+    // l = clock length counters and sweep units
+    // e = clock envelopes and triangle's linear counter
+    // 
+    // mode 0: 4 - step  effective rate(approx)
+    // -------------------------------------- -
+    // ---f      60 Hz
+    // - l - l     120 Hz
+    // e e e e     240 Hz
+    // 
+    // mode 1: 5 - step  effective rate(approx)
+    // -------------------------------------- -
+    // -----(interrupt flag never set)
+    // l - l - -96 Hz
+    // e e e e - 192 Hz
 
-	// Step timers
+    // Step timers
     // The triangle channel's timer is clocked on every CPU cycle, but the pulse, noise, and DMC timers
     // are clocked only on every second CPU cycle and thus produce only even periods.
     if ( (frameCycle % 2) == 0 ) {
         pulse1.TickTimer();
         pulse2.TickTimer();
+
+        dmc.TickTimer();
     }
 
     ++frameCycle;
-	
-	// Update components
-	switch (frameCounter.mode) {
-		case 0: {
-			// NTSC
-			// Timings coming from Blargg tests
-			switch (frameCycle) {
-				case 7459: {
-					// Step 1
-					// 7459  Clock linear
-                    pulse1.TickEnvelope();
-                    pulse2.TickEnvelope();
-
-					break;
-				}
-
-				case 14915: {
-					// Step 2
-					// 14915 Clock linear & length
-                    pulse1.TickEnvelope();
-                    pulse2.TickEnvelope();
-
-                    pulse1.TickLengthCounter();
-                    pulse2.TickLengthCounter();
-
-					break;
-				}
-
-				case 22373: {
-					// Step 3
-					// 22373 Clock linear
-                    pulse1.TickEnvelope();
-                    pulse2.TickEnvelope();
-					
-					break;
-				}
-
-				case 29830: {
-					// 29830 Set frame irq
-                    frameCounter.TriggerIRQ( cpu );
-					break;
-				}
-
-				case 29831: {
-					// Step 4
-					// 29831 Clock linear & length and set frame irq
-                    pulse1.TickEnvelope();
-                    pulse2.TickEnvelope();
-
-                    pulse1.TickLengthCounter();
-                    pulse2.TickLengthCounter();
-
-                    frameCounter.TriggerIRQ( cpu );
-
-					break;
-				}
-
-				case 29832: {
-					// 29832 Set frame irq
-                    frameCounter.TriggerIRQ( cpu );
-
-					break;
-				}
-			}
-
-			break;
-		}
-
-		case 1: {
-			// PAL
+    
+    // Update components
+    switch (frameCounter.mode) {
+        case 0: {
+            // NTSC
             // Timings coming from Blargg tests
-            switch ( frameCycle ) {
+            switch (frameCycle) {
                 case 7459: {
-					// Step 1
-					// 7459  Clock linear
+                    // Step 1
+                    // 7459  Clock linear
                     pulse1.TickEnvelope();
                     pulse2.TickEnvelope();
 
-					break;
-				}
+                    break;
+                }
 
-				case 14915: {
-					// Step 2
-					// 14915 Clock linear & length
-                    pulse1.TickEnvelope();
-                    pulse2.TickEnvelope();
-
-                    pulse1.TickLengthCounter();
-                    pulse2.TickLengthCounter();
-
-					break;
-				}
-
-				case 22373: {
-					// Step 3
-					// 22373 Clock linear
-                    pulse1.TickEnvelope();
-                    pulse2.TickEnvelope();
-					
-					break;
-				}
-
-				case 29829: {
-					// Empty
-					break;
-				}
-
-				case 37283: {
-					// Step 4
-					// 29831 Clock linear & length and set frame irq
+                case 14915: {
+                    // Step 2
+                    // 14915 Clock linear & length
                     pulse1.TickEnvelope();
                     pulse2.TickEnvelope();
 
                     pulse1.TickLengthCounter();
                     pulse2.TickLengthCounter();
 
-					break;
-				}
+                    break;
+                }
+
+                case 22373: {
+                    // Step 3
+                    // 22373 Clock linear
+                    pulse1.TickEnvelope();
+                    pulse2.TickEnvelope();
+                    
+                    break;
+                }
+
+                case 29830: {
+                    // 29830 Set frame irq
+                    frameCounter.TriggerIRQ( cpu );
+                    break;
+                }
+
+                case 29831: {
+                    // Step 4
+                    // 29831 Clock linear & length and set frame irq
+                    pulse1.TickEnvelope();
+                    pulse2.TickEnvelope();
+
+                    pulse1.TickLengthCounter();
+                    pulse2.TickLengthCounter();
+
+                    frameCounter.TriggerIRQ( cpu );
+
+                    break;
+                }
+
+                case 29832: {
+                    // 29832 Set frame irq
+                    frameCounter.TriggerIRQ( cpu );
+
+                    break;
+                }
             }
-			break;
-		}
-	}
-
-	// 40 = 1789773 / 44100
-    if (frameCycle % (CpuClockRate / SampleRate) == 0)  {
-
-		static float previousSample = 0;
-
-		float soundValue = OutputSound();
-
-		float delta = soundValue - previousSample;
-		int32 deltaInt = (int32)(delta * 32768.0f);
-
-		deltaInt = deltaInt > 32768 ? 32768 : deltaInt;
-		deltaInt = deltaInt < -32768 ? -32768 : deltaInt;
-
-		previousSample = soundValue;
-    }
-
-	switch (frameCounter.mode) {
-		case 0: {
-			// Step 1
-			// 37289 Clock linear
-			if (frameCycle >= 37289) {
-				frameCycle = 7459;
-			}
-
-			break;
-		}
-
-        case 1: {
-			if (frameCycle >= 37283) {
-				frameCycle = 0;
-			}
 
             break;
         }
-	}
+
+        case 1: {
+            // PAL
+            // Timings coming from Blargg tests
+            switch ( frameCycle ) {
+                case 7459: {
+                    // Step 1
+                    // 7459  Clock linear
+                    pulse1.TickEnvelope();
+                    pulse2.TickEnvelope();
+
+                    break;
+                }
+
+                case 14915: {
+                    // Step 2
+                    // 14915 Clock linear & length
+                    pulse1.TickEnvelope();
+                    pulse2.TickEnvelope();
+
+                    pulse1.TickLengthCounter();
+                    pulse2.TickLengthCounter();
+
+                    break;
+                }
+
+                case 22373: {
+                    // Step 3
+                    // 22373 Clock linear
+                    pulse1.TickEnvelope();
+                    pulse2.TickEnvelope();
+                    
+                    break;
+                }
+
+                case 29829: {
+                    // Empty
+                    break;
+                }
+
+                case 37283: {
+                    // Step 4
+                    // 29831 Clock linear & length and set frame irq
+                    pulse1.TickEnvelope();
+                    pulse2.TickEnvelope();
+
+                    pulse1.TickLengthCounter();
+                    pulse2.TickLengthCounter();
+
+                    break;
+                }
+            }
+            break;
+        }
+    }
+
+    // 40 = 1789773 / 44100
+    if (frameCycle % (CpuClockRate / SampleRate) == 0)  {
+
+        static float previousSample = 0;
+
+        float soundValue = OutputSound();
+
+        float delta = soundValue - previousSample;
+        int32 deltaInt = (int32)(delta * 32768.0f);
+
+        deltaInt = deltaInt > 32768 ? 32768 : deltaInt;
+        deltaInt = deltaInt < -32768 ? -32768 : deltaInt;
+
+        previousSample = soundValue;
+    }
+
+    switch (frameCounter.mode) {
+        case 0: {
+            // Step 1
+            // 37289 Clock linear
+            if (frameCycle >= 37289) {
+                frameCycle = 7459;
+            }
+
+            break;
+        }
+
+        case 1: {
+            if (frameCycle >= 37283) {
+                frameCycle = 0;
+            }
+
+            break;
+        }
+    }
 
     // Delay the update of the frame counter
     if ( frameCounter.dataWriteDelay > 0 ) {
@@ -2090,13 +2107,13 @@ void Nes::Apu::WriteControl( uint8 data ) {
 #else
     enabledChannels.data = data;
 
-	if (!enabledChannels.flags.pulse1) {
-		pulse1.lengthCounter = 0;
-	}
+    if (!enabledChannels.flags.pulse1) {
+        pulse1.lengthCounter = 0;
+    }
 
-	if (!enabledChannels.flags.pulse2) {
-		pulse2.lengthCounter = 0;
-	}
+    if (!enabledChannels.flags.pulse2) {
+        pulse2.lengthCounter = 0;
+    }
 #endif
 }
 
@@ -2110,6 +2127,7 @@ uint8 Nes::Apu::ReadStatus() {
 #endif
     uint8 status = (pulse1.lengthCounter > 0 ? 1 : 0) | (pulse2.lengthCounter > 0 ? 2 : 0);
     status |= frameCounter.hasIRQ ? 1 << 6 : 0;
+    status |= dmc.irqEnabled ? 1 << 7 : 0;
 
     frameCounter.hasIRQ = false;
     cpu->ClearIRQ( Cpu::IRQSource_FrameCounter );
@@ -2185,15 +2203,42 @@ void Nes::Apu::CpuWrite( uint16 address, uint8 data ) {
             break;
         }
 
+        case $4010_DMC_Status: {
+            dmc.CpuWrite( address, data );
+
+            if ( !dmc.irqEnabled ) {
+                cpu->ClearIRQ( Cpu::IRQSource_DMC );
+            }
+            break;
+        }
+
+        case $4011_DMC_LoadCounter: {
+            dmc.CpuWrite( address, data );
+            break;
+        }
+
+        case $4012_DMC_SampleAddress: {
+            dmc.CpuWrite( address, data );
+            break;
+        }
+
+        case $4013_DMC_SampleLength: {
+            dmc.CpuWrite( address, data );
+            break;
+        }
+
         case $4015_Status: {
             // Enable each channel.
-            // TODO: should the channel know if it is enabled ?
             enabledChannels.data = data;
 
             pulse1.lengthCounter = enabledChannels.flags.pulse1 ? pulse1.lengthCounter : 0;
             pulse2.lengthCounter = enabledChannels.flags.pulse2 ? pulse2.lengthCounter : 0;
 
+            dmc.Enable( enabledChannels.flags.dmc );
+
+            // Writing to this register clears the DMC interrupt flag.
             cpu->ClearIRQ( Cpu::IRQSource_DMC );
+
             break;
         }
 
@@ -2213,28 +2258,31 @@ void Nes::Apu::CpuWrite( uint16 address, uint8 data ) {
         }
 
         default:
-            PrintFormat( "Error writing to %X\n", address );
+            //PrintFormat( "Error writing to %X\n", address );
             break;
     }
 
 #endif
 }
  static float mix( int pulse1, int pulse2, int triangle, int noise, int dmc) {
-
-	return (0.9588f * (pulse1 + pulse2)) / (pulse1 + pulse2 + 81.28f)
-		- 361.733f / (2.75167f * triangle + 1.84936f * noise + dmc + 226.38f)
-		+ 1.5979f;
+    return (0.9588f * (pulse1 + pulse2)) / (pulse1 + pulse2 + 81.28f)
+            - 361.733f / (2.75167f * triangle + 1.84936f * noise + dmc + 226.38f)
+            + 1.5979f;
 }
+
+ void Nes::Apu::ReadDMCSample() {
+    dmc.ReadNextSample();
+ }
 
 float Nes::Apu::OutputSound() {
 
     float pulse = apuPulseTable[pulse1.Output() + pulse2.Output()];
-	float tnd = apuTNDTable[0];
+    float tnd = apuTNDTable[0];
     // pulse = pulseTable[pulse1 + pulse2]
     // tnd = tndTable[3* triangle + 2 * noise + dmc]
     // output = pulse + tnd
     return pulse + tnd;
-	//return mix(pulse1.Output(), pulse2.Output(), 0, 0, 0);
+    //return mix(pulse1.Output(), pulse2.Output(), 0, 0, 0);
 }
 
 void Nes::Apu::Mute( bool value ) {
@@ -2258,16 +2306,166 @@ void Nes::Apu::SetVolume( float value ) {
 #endif
 }
 
+//////////////////////////////////////////////////////////////////////////
 void Nes::Apu::FrameCounter::Reset() {
     mode = 0;
     hasIRQ = 0;
     dataWriteDelay = -1;
+    data = 0;
 }
 
 void Nes::Apu::FrameCounter::TriggerIRQ( Cpu* cpu ) {
     if ( (data & FrameCounter::RegisterFlags_InhibitIRQ) != FrameCounter::RegisterFlags_InhibitIRQ ) {
         hasIRQ = true;
         cpu->SetIRQ( Cpu::IRQSource_FrameCounter );
+    }
+}
+
+//////////////////////////////////////////////////////////////////////////
+
+static const uint16 kPeriodNTSC[] = { 428, 380, 340, 320, 286, 254, 226, 214, 190, 160, 142, 128, 106,  84,  72,  54 };
+
+void Nes::Apu::DeltaModulationChannel::Reset() {
+    irqEnabled = 0;
+    isLooping = 0;
+    needSamples = 0;
+    silence = 1;
+    outputCycle = 8;
+    outputLevel = 0;
+
+    period = 0;
+    loadCounter = 0;
+    
+    sampleAddress = 0;
+    currentSampleAddress = 0;
+
+    sampleLength = 0;
+    currentSampleLength = 0;
+
+    currentSample = 0;
+    nextSample = 0;
+}
+
+void Nes::Apu::DeltaModulationChannel::CpuWrite( uint16 address, uint8 data ) {
+
+    switch ( address ) {
+        case $4010_DMC_Status: {
+            
+            irqEnabled = ( data & RegisterFlags_IRQ ) == RegisterFlags_IRQ;
+            isLooping = ( data & RegisterFlags_Loop ) == RegisterFlags_Loop;
+
+            // TODO: add PAL support.
+            period = kPeriodNTSC[( data & 0xF )] - 1;
+
+            break;
+        }
+
+        case $4011_DMC_LoadCounter: {
+            loadCounter = data & 0x7F;
+            break;
+        }
+
+        case $4012_DMC_SampleAddress: {
+            // APU starts reading at address 0xC000
+            // Sample address = %11AAAAAA.AA000000 = $C000 + (A * 64)
+            sampleAddress = 0xC000 | ( data << 6 );
+            break;
+        }
+
+        case $4013_DMC_SampleLength: {
+            // Sample length = %LLLL.LLLL0001 = (L * 16) + 1 bytes
+            sampleLength = ( data << 4 ) | 0x1;
+            break;
+        }
+    }
+}
+
+void Nes::Apu::DeltaModulationChannel::Enable( uint8 value ) {
+    if ( value ) {
+        // 1. If the DMC bit is set, the DMC sample will be restarted only if its bytes remaining is 0.
+        //    If there are bits remaining in the 1-byte sample buffer, these will finish playing before the next sample is fetched.
+        StartPlayingSample();
+
+        cpu->LoadDMCSample();
+    }
+    else {
+        // 2. If the DMC bit is clear, the DMC bytes remaining will be set to 0 and the DMC will silence when it empties.
+        currentSampleLength = 0;
+    }
+}
+
+void Nes::Apu::DeltaModulationChannel::TickTimer() {
+
+    // The output unit continuously outputs a 7 - bit value to the[[APU Mixer | mixer]].
+    // It contains an 8 - bit right shift register, a bits - remaining counter, 
+    // a 7 - bit output level( the same one that can be loaded directly via $4011 ), 
+    // and a silence flag.
+
+    // When the timer outputs a clock, the following actions occur in order :
+    //  # If the silence flag is clear, the output level changes based on bit 0 of the shift register.
+    //      If the bit is 1, add 2; otherwise, subtract 2. But if adding or subtracting 2 would cause the output level to leave the 0 - 127 range, leave the output level unchanged.This means subtract 2 only if the current level is at least 2, or add 2 only if the current level is at most 125.
+    //  # The right shift register is clocked.
+    //  # As stated above, the bits - remaining counter is decremented.If it becomes zero, a new output cycle is started.
+    if ( !silence ) {
+
+        outputLevel = ( currentSample & 0x1 ) ? outputLevel + 2 : outputLevel - 2;
+        // Clamp to 0..127
+        outputLevel = outputLevel < 0 ? 0 : outputLevel;
+        outputLevel = outputLevel > 127 ? 127 : outputLevel;
+        // Shift bits of the current sample
+        currentSample >>= 1;
+    }
+
+    // The bits - remaining counter is updated whenever the[[APU Misc | timer]] outputs a clock, 
+    //   regardless of whether a sample is currently playing.
+    // When this counter reaches zero, we say that the output cycle ends.
+    // The DPCM unit can only transition from silent to playing at the end of an output cycle.
+    --outputCycle;
+    if ( outputCycle == 0 ) {
+        outputCycle = 8;
+
+        // When an output cycle ends, a new cycle is started as follows :
+        //  * The bits - remaining counter is loaded with 8.
+        //  * If the sample buffer is empty, then the silence flag is set; otherwise, the silence flag is cleared
+        //    and the sample buffer is emptied into the shift register.
+        if ( nextSample == 0 ) {
+            silence = 1;
+        }
+        else {
+            silence = 0;
+            currentSample = nextSample;
+            nextSample = 0;
+
+            cpu->LoadDMCSample();
+        }
+    }
+    //  ''Nothing can interrupt a cycle; every cycle runs to completion before a new cycle is started.''
+
+    // TODO: output.
+    outputLevel;
+}
+
+void Nes::Apu::DeltaModulationChannel::StartPlayingSample() {
+    // Use the new values coming from the setting of the register.
+    currentSampleAddress = sampleAddress;
+    currentSampleLength = sampleLength;
+}
+
+void Nes::Apu::DeltaModulationChannel::ReadNextSample() {
+    // * The sample buffer is filled with the next sample byte read from the current address, subject to whatever[[MMC | mapping hardware]] is present.
+    nextSample = cpu->MemoryRead( currentSampleAddress++ );
+    // * The address is incremented; if it exceeds $FFFF, it is wrapped around to $8000.
+    currentSampleAddress = 0 ? 0x8000 : currentSampleAddress;
+    // * The bytes remaining counter is decremented; if it becomes zero and the loop flag is set, the sample is restarted( see above );
+    //   otherwise, if the bytes remaining counter becomes zero and the IRQ enabled flag is set, the interrupt flag is set.
+    --currentSampleLength;
+    if ( currentSampleLength == 0 ) {
+        if ( isLooping ) {
+            StartPlayingSample();
+        }
+        else if (irqEnabled) {
+            cpu->SetIRQ( Cpu::IRQSource_DMC );
+        }
     }
 }
 
@@ -2281,9 +2479,9 @@ static const uint8 kDutyTable[] = { 0, 1, 0, 0, 0, 0, 0, 0,
 
 
 static const uint8 kDutyTable2[4][8] = { {0, 1, 0, 0, 0, 0, 0, 0},
-									    {0, 1, 1, 0, 0, 0, 0, 0},
-									    {0, 1, 1, 1, 1, 0, 0, 0},
-									    {1, 0, 0, 1, 1, 1, 1, 1} };
+                                        {0, 1, 1, 0, 0, 0, 0, 0},
+                                        {0, 1, 1, 1, 1, 0, 0, 0},
+                                        {1, 0, 0, 1, 1, 1, 1, 1} };
 
 void Nes::Apu::Pulse::WriteControl( uint8 data ) {
     control.data = data;
@@ -2360,7 +2558,7 @@ uint8 Nes::Apu::Pulse::Output() {
         return 0;
 
     //if ( kDutyTable[control.dutyCycles * kDutyPeriod + dutyCycle] == 0 )
-	if (kDutyTable2[control.dutyCycles][dutyCycle] == 0)
+    if (kDutyTable2[control.dutyCycles][dutyCycle] == 0)
         return 0;
 
     if ( timer < 8 || timer > 0x7ff )

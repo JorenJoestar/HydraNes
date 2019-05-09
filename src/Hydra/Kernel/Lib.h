@@ -334,6 +334,8 @@ namespace hydra {
         WindowHandle                    handle;
         cstring                         name;
         Rect<uint16>                    windowArea;
+        uint16                          requestedWidth;
+        uint16                          requestedHeight;
         uint16                          frameBufferWidth;
         uint16                          frameBufferHeight;
         bool                            isResizing;

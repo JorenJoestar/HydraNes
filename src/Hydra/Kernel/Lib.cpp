@@ -177,6 +177,21 @@ void CreateEnum( FILE* Output, char* tokens, const char* name, bool generateMask
 
 #if defined(_WIN64)
 
+static void GetWindowSizes( WindowSystem& w ) {
+     // Retrieve frame buffer actual size
+    RECT clientRect, windowRect;
+    GetClientRect( w.handle, &clientRect );
+    // Update window area
+    GetWindowRect( w.handle, &windowRect );
+
+    w.windowArea = { (uint16)windowRect.left, (uint16)windowRect.top, (uint16)(windowRect.right - windowRect.left),
+                     (uint16)(windowRect.bottom - windowRect.top) };
+
+    w.frameBufferWidth = (uint16)clientRect.right;
+    w.frameBufferHeight = (uint16)clientRect.bottom;
+}
+
+
 static void GetMouseCoords(LPARAM lParam, int32& x, int32& y) {
     x = LOWORD( lParam );
     y = HIWORD( lParam );
@@ -252,6 +267,11 @@ LRESULT CALLBACK WndProc( HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam ) {
             window->callbacksActivationMask.set( window::callbacks::Type_WindowResize );
 
             window->isResizing = false;
+            // Calculate new 'requested size'
+            window->requestedWidth += newWidth - window->frameBufferWidth;
+            window->requestedHeight += newHeight - window->frameBufferHeight;
+
+            GetWindowSizes( *window );
 
             break;
         }
@@ -492,7 +512,6 @@ cstring window::callbacks::ToString( window::callbacks::Types e ) {
     return sStrings[(int)e];
 }
 
-
 static void InitWindow( const WindowInit& desc ) {
 
 #if defined(_WIN64)
@@ -550,24 +569,18 @@ static void InitWindow( const WindowInit& desc ) {
     }
 
     
-    // Retrieve frame buffer actual size
-    RECT clientRect;
-    GetClientRect( windowHandle, &clientRect );
-    // Update window area
-    GetWindowRect( windowHandle, &windowRect );
-
     WindowSystem& w = *desc.outWindow;
     w.flags.set( WindowSystem::Flags_fullscreen, desc.fullscreen );
     w.name = desc.name;
-    w.windowArea = { (uint16)windowRect.left, (uint16)windowRect.top, (uint16)( windowRect.right - windowRect.left ),
-                     (uint16)( windowRect.bottom - windowRect.top ) };
-
-    w.frameBufferWidth =  (uint16)clientRect.right;
-    w.frameBufferHeight = (uint16)clientRect.bottom;
     w.handle = windowHandle;
     w.processHandle = desc.process;
     w._eventStream._blob = desc.blob;
+    w.requestedWidth = desc.rect.width;
+    w.requestedHeight = desc.rect.height;
 
+    // Retrieve framebuffer and window sizes
+    GetWindowSizes( w );
+   
     InitRawInput( windowHandle );
 
     ShowWindow( windowHandle, SW_SHOW );

@@ -724,8 +724,8 @@ void MainState::SaveOptions( cstring ini_filename ) {
     emulationOptions.masterVolume = nes.apu.volume;
     emulationOptions.lastOpenedRom = nes.cart.filename;
     emulationOptions.executeLastRomOnStartup = nesui.executeOnStartup;
-    emulationOptions.width = window->frameBufferWidth;
-    emulationOptions.height = window->frameBufferHeight;
+    emulationOptions.width = window->requestedWidth;
+    emulationOptions.height = window->requestedHeight;
 
     fprintf_s( ini_file, "[Window]\n" );
     fprintf_s( ini_file, "window_width=%u\n", emulationOptions.width );

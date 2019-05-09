@@ -116,6 +116,7 @@ void InputUpdateSystem::Update() {
                     const window::events::Resize& inputEvent = e.GetEvent<window::events::Resize>();
                     w.frameBufferWidth = inputEvent.width;
                     w.frameBufferHeight = inputEvent.height;
+
                     break;
                 }
 

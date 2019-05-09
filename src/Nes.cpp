@@ -1906,7 +1906,7 @@ void Nes::Apu::Tick() {
             // NTSC
             // Timings coming from Blargg tests
             switch (frameCycle) {
-                case 7459: {
+                case 7457: {
                     // Step 1
                     // 7459  Clock linear
                     TickQuarterFrame();
@@ -1914,7 +1914,7 @@ void Nes::Apu::Tick() {
                     break;
                 }
 
-                case 14915: {
+                case 14911: {
                     // Step 2
                     // 14915 Clock linear & length
                     TickHalfFrame();
@@ -1922,7 +1922,7 @@ void Nes::Apu::Tick() {
                     break;
                 }
 
-                case 22373: {
+                case 22371: {
                     // Step 3
                     // 22373 Clock linear
                     TickQuarterFrame();
@@ -1930,13 +1930,13 @@ void Nes::Apu::Tick() {
                     break;
                 }
 
-                case 29830: {
+                case 29828: {
                     // 29830 Set frame irq
                     frameCounter.TriggerIRQ( cpu );
                     break;
                 }
 
-                case 29831: {
+                case 29829: {
                     // Step 4
                     // 29831 Clock linear & length and set frame irq
                     TickHalfFrame();
@@ -1946,7 +1946,7 @@ void Nes::Apu::Tick() {
                     break;
                 }
 
-                case 29832: {
+                case 29830: {
                     // 29832 Set frame irq
                     frameCounter.TriggerIRQ( cpu );
 
@@ -2024,8 +2024,8 @@ void Nes::Apu::Tick() {
         case 0: {
             // Step 1
             // 37289 Clock linear
-            if (frameCycle >= 37289) {
-                frameCycle = 7459;
+            if (frameCycle >= 37291) {
+                frameCycle = 7457;
             }
 
             break;
@@ -2047,7 +2047,7 @@ void Nes::Apu::Tick() {
         if ( frameCounter.dataWriteDelay == 0 ) {
 
             frameCounter.mode = (frameCounter.data & FrameCounter::RegisterFlags_Mode) == FrameCounter::RegisterFlags_Mode ? 1 : 0;
-
+            
             if ( frameCounter.mode == 1 ) {
                 // Clock immediately
                 TickHalfFrame();

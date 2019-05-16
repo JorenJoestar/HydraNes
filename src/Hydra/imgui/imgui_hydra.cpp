@@ -121,11 +121,11 @@ void ImGui_ImplGlfwGL3_RenderDrawLists( ImDrawData* draw_data ) {
     glViewport( last_viewport[0], last_viewport[1], (GLsizei)last_viewport[2], (GLsizei)last_viewport[3] );
 }
 
-static const char* ImGui_ImplGlfwGL3_GetClipboardText() {
+static const char* ImGui_ImplGlfwGL3_GetClipboardText( void* userData ) {
     return "";/// glfwGetClipboardString( g_Window );
 }
 
-static void ImGui_ImplGlfwGL3_SetClipboardText( const char* text ) {
+static void ImGui_ImplGlfwGL3_SetClipboardText( void* userData, const char* text ) {
   //  glfwSetClipboardString( g_Window, text );
 }
 /*
@@ -278,6 +278,9 @@ void    ImGui_ImplGlfwGL3_InvalidateDeviceObjects() {
 #endif // HY_OPENGL
 
 void ImGuiInit( WindowSystem& window, gfx::RenderDevice& rd ) {
+
+    ImGui::CreateContext();
+    ImGui::StyleColorsDark();
     ImGuiIO& io = ImGui::GetIO();
     io.KeyMap[ImGuiKey_Tab] = input::KEY_TAB;                         // Keyboard mapping. ImGui will use those indices to peek into the io.KeyDown[] array.
     io.KeyMap[ImGuiKey_LeftArrow] = input::KEY_LEFT;
@@ -322,7 +325,7 @@ void ImGuiTerminate( gfx::RenderDevice& rd ) {
 #if defined(HY_OPENGL)
     ImGui_ImplGlfwGL3_InvalidateDeviceObjects();
 #endif
-    ImGui::Shutdown();
+    ImGui::DestroyContext();
 }
 
 void ImGuiNewFrame( WindowSystem& window, input::InputSystem& i, gfx::RenderDevice& rd ) {
@@ -338,7 +341,7 @@ void ImGuiNewFrame( WindowSystem& window, input::InputSystem& i, gfx::RenderDevi
 
     // Setup time step
     Time current_time = hydra::time::Now();
-    io.DeltaTime = (float)( time::IntervalMilliseconds( current_time, g_Time ) / 1000.0f);
+    io.DeltaTime = (float)( time::IntervalMilliseconds( current_time, g_Time ) / 1000.0f) + 0.0000001f;
     g_Time = current_time;
 
     // Setup inputs

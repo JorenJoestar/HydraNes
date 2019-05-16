@@ -542,6 +542,9 @@ void MainState::Init( application::InitContext& context ) {
 
     renderer->screenData = nes.screen.frameBuffer;
 
+    // GSFlow: 1.
+    // GSTag: [ROM] [UI]
+    // Load rom is where a file containing the ROM is loaded, the memory is copied 
     if ( emulationOptions.lastOpenedRom.size() > 4 ) {
         nes.LoadRom( emulationOptions.lastOpenedRom.c_str() );
     } 
@@ -593,7 +596,9 @@ bool MainState::Update( application::UpdateContext& context ) {
     else {
         if ( simulationType == type_continuous && nes.cart.IsCartridgeInserted() ) {
 
-            // Update controllers input
+            // GSFlow: 2.
+            // GSTag: [EMULATION] [INPUT] [UPDATE]
+            // 2.1 - get both keyboard and gamepad input (if gamepad is attached) and set the proper state in the NES controller.
             for ( size_t i = 0; i < Nes::Controller::Button_Count; ++i ) {
                 if (input->IsButtonDown( (Nes::Controller::Buttons) (i) ) ) {
                     nes.controllers.SetButton( 0, (Nes::Controller::Buttons) (i) );
@@ -603,15 +608,22 @@ bool MainState::Update( application::UpdateContext& context ) {
             uint64 currentCpuCycles = nes.cpu.cycles;
             uint32 currentFrame = nes.ppu.frames;
 
+            // GSFlow: 3.
+            // GSTag: [EMULATION] [UPDATE]
+            // 3.1 - Execute a frame based on when the PPU changes frame.
+            //       All the 'magic' happens here.
             //PrintFormat( "Frame %u\n", currentFrame );
             // Execute 1 frame = execute until ppu changes frame.
             while ( currentFrame == nes.ppu.frames )
                 nes.cpu.Step();
 
             uint64 elapsedCpuCycles = nes.cpu.cycles - currentCpuCycles;
+
+            // 3.2 - Catch-up the APU if needed. This is still WIP.
             // Emulate APU
             nes.apu.EndFrame(elapsedCpuCycles);
-
+            // This is to prevent APU to think it is at the same frame cycles when using Blargg's one.
+            // I am still learning the APU code.
             nes.cpu.frameCycles = 1;
         }
 
@@ -625,7 +637,7 @@ bool MainState::Update( application::UpdateContext& context ) {
 
     currentProfiler->Pop();
 
-    // Always update screen texture
+    // Choose which texture to render in the Screen UI widget based on Zoom Factor.
     switch ( nes.screen.zoomFactor ) {
         case Nes::Screen::Zoom_1x:
             nes.screenTexture = renderer->fbs->rts[0]->handle;

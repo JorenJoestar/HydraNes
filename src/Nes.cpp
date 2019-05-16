@@ -84,6 +84,15 @@ void Nes::Cpu::Step() {
         CpuDisassemble( asmBuffer.begin(), PC );
 #endif
 
+    // GSFlow: 3.1.1
+    // GSTag: [UPDATE] [EMULATION]
+    // This is THE central part of the emulation and it starts from the CPU.
+    // Fetch opcode, decode and execute.
+    // In the 6502 case, AddressModes (the 3rd argument of the macro) is used to fetch the operands
+    // to be used by the instruction.
+    // IMPORTANT: PPU and APU are executed AFTER EACH MEMORY ACCESS (READ/WRITE). No parallel threads or anything fancy.
+    //            This is because from the NesDev documentation, each CPU cycle is guaranteed to have a memory access.
+
     opAddress = PC;
     opCode = MemoryRead(PC++);
 
@@ -164,15 +173,20 @@ void Nes::Cpu::Reset() {
     // - After reset or power-up, APU acts as if $4017 were written with $00
     // from 9 to 12 clocks before first instruction begins.It is as if this
     // occurs( this generates a 10 clock delay )
-    for ( uint32 i = 0; i < 10; ++i ) {
-        apu->Tick();
-    }
+    //for ( uint32 i = 0; i < 10; ++i ) {
+    //    apu->Tick();
+    //}
 #endif
     PC = MemoryReadWord( kResetVector );
 }
 
 void Nes::Cpu::Tick() {
     
+    // GSFlow: 3.1.3
+    // GSTag: [UPDATE] [EMULATION]
+    // Core to the emulation is to advance PPU and APU and simulate the stalls due to DMA, as many other things.
+    // PPU executes 3 cycles for each CPU.
+    // APU in theory 2 cycles, but in practice all the cycle timings are moved to a 1-1 with CPU cycles.
     ++cycles;
     ++frameCycles;
 
@@ -195,13 +209,19 @@ void Nes::Cpu::Tick() {
     }
 }
 
-uint8 Nes::Cpu::MemoryRead( uint16 address ) {    
+uint8 Nes::Cpu::MemoryRead( uint16 address ) {
+    // GSFlow: 3.1.2
+    // GSTag: [UPDATE] [EMULATION]
+    // Tick is what let the other component run for each CPU cycle.
     Tick();
 
     return memoryController->CpuRead( address );
 }
 
 void Nes::Cpu::MemoryWrite( uint16 address, uint8 data ) {
+    // GSFlow: 3.1.2
+    // GSTag: [UPDATE] [EMULATION]
+    // Tick is what let the other component run for each CPU cycle.
     Tick();
 
     memoryController->CpuWrite( address, data );
@@ -701,7 +721,7 @@ void Nes::Mapper3::UpdateChrBank() {
 Nes::Mapper4::Mapper4( Cpu* cpu, Cart& cart ) : Mapper(cpu) {
 
     prgMemory = cart.prgRom.begin();
-    chrMemory = cart.chrRom.begin();
+    chrMemory = cart.romHeader.chrRomPages ? cart.chrRom.begin() : cart.chrRam.begin();
     prgRamMemory = cart.prgRam.begin();
 
     // 8k prg rom bank
@@ -808,19 +828,22 @@ void Nes::Mapper4::PrgWrite( uint16 address, uint8 data ) {
     }
 }
 
-void Nes::Mapper4::PpuAddress12Rise() {
-    if ( irqCounter == 0 && irqReload ) {
-        irqCounter = irqReloadPeriod;
-    }
-    else {
-        --irqCounter;
-    }
+void Nes::Mapper4::PpuAddress12( uint8 value ) {
 
-    if ( irqCounter == 0 && irqEnable ) {
-        cpu->SetIRQ( Cpu::IRQSource_MMC3 );
-    }
+    if ( value == 1 ) {
+        if ( irqCounter == 0 && irqReload ) {
+            irqCounter = irqReloadPeriod;
+        }
+        else {
+            --irqCounter;
+        }
 
-    irqReload = 0;
+        if ( irqCounter == 0 && irqEnable ) {
+            cpu->SetIRQ( Cpu::IRQSource_MMC3 );
+        }
+
+        irqReload = 0;
+    }
 }
 
 void Nes::Mapper4::UpdateMirroring() {
@@ -1065,8 +1088,8 @@ void Nes::MemoryController::PpuWrite( uint16 address, uint8 data ) {
     //Assert( false && "unhandled location" );
 }
 
-void Nes::MemoryController::PpuAddress12Rise() {
-    mapper->PpuAddress12Rise();
+void Nes::MemoryController::PpuAddress12( uint8 value ) {
+    mapper->PpuAddress12( value );
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -1088,7 +1111,10 @@ void Nes::Ppu::Init( Cpu* cpu, Screen* screen, MemoryController* memoryControlle
 }
 
 void Nes::Ppu::Tick() {
-    // handle region difference
+    // GSFlow: 3.1.3.1
+    // GSTag: [UPDATE] [EMULATION]
+
+    // TODO: Handle region difference. PAL not supported.
 
     // One cpu tick is equal to 3 ppu ticks.
     Step();
@@ -1210,6 +1236,8 @@ uint8 Nes::Ppu::CpuRead(uint16 address) {
             else {
                 value = internalReadBuffer = memoryController->PpuRead(v);
             }
+
+            memoryController->PpuAddress12( (v >> 12) & 0x1 );
         
             IncrementAddressV();
             break;
@@ -1314,6 +1342,8 @@ void Nes::Ppu::CpuWrite(uint16 address, uint8 data) {
 
                 w = 0;
             }
+
+            memoryController->PpuAddress12( (v & 0x1000) == 0x1000 ? 1 : 0 );
         
             break;
         }
@@ -1321,6 +1351,8 @@ void Nes::Ppu::CpuWrite(uint16 address, uint8 data) {
         case Ppu::R2007_PPUDATA: {
 
             memoryController->PpuWrite(v, data);
+
+            memoryController->PpuAddress12( ( v & 0x1000 ) == 0x1000 ? 1 : 0 );
         
             IncrementAddressV();
             break;
@@ -1657,16 +1689,25 @@ void Nes::Ppu::Step() {
     }
 #endif // NES_TEST_PPU_CYCLE
 
+    // GSFlow: 3.1.3.2
+    // GSTag: [UPDATE] [EMULATION]
+    // This is the main PPU loop.
+    // The behaviour changes based on the current scanline and pixels.
+    // TODO: rename the 'magic numbers' with an enum that is both numerical and text for better comprehension.
+
     // Standard rendering
     if ( scanline < 240 || scanline == 261 ) {
-        // Sprite
+
+        // Sprite handling.
+        // For each visible scanline find new sprites.
         switch ( pixelCycle ) {
             case 1: ClearSecondaryOAM(); if ( scanline == 261 ) { spriteOverflow = spriteHit = false; } break;
             case 257: EvaluateSprites(); break;
             case 321: LoadSprites(); break;
         }
 
-        // Tiles
+        // Tiles handling.
+        // Each scanline reads 8 pixels from the CHR memory and assemble the 4 bit necessary to index the Palette entry in VRAM.
         if ( (pixelCycle > 1) && (pixelCycle < 256) || (pixelCycle > 321 && pixelCycle < 338) ) {
             DrawPixel();
             switch ( pixelCycle % 8 ) {
@@ -1695,6 +1736,8 @@ void Nes::Ppu::Step() {
             }
         }
 
+        // Miscellaneous pixels.
+        // The cycle is offsetted by 2 for some CPU-PPU synchronization reason, so it is necessary to adjust this accordingly.
         switch ( pixelCycle ) {
             case 256: DrawPixel(); ReadTileHigh(); IncrementVertV(); break;
             case 257: DrawPixel(); ReloadShiftRegisters(); CopyHoriV(); break;
@@ -1713,20 +1756,24 @@ void Nes::Ppu::Step() {
             CopyVertV();
         }
 
-        // PPU A12 pin signaling
+        // PPU A12 pin signaling, used by MMC3 mapper.
         if ( IsRendering() ) {
             if ( pixelCycle == 260 ) {
-                memoryController->PpuAddress12Rise();
+                memoryController->PpuAddress12( 1 );
             }
         }
     }
 
-    // Even/odd frame skipping
+    // Even/odd frame skipping.
     if ( scanline == 261 && IsRendering() && (frames & 0x01) && pixelCycle == 337 ) {
         ++pixelCycle;
     }
 
-    // Vertical blank 
+    // Vertical blank handling.
+    // This is hand-tuned based on test ROMS.
+    // Once a global event recording system is in place, it will be easier to understand WHY this is different from the
+    //  theoretical scanline == 241 and pixel == 1. (again by 2 cycles).
+    // Vertical bland START.
     if ( scanline == 240 && pixelCycle == 340 ) {
         verticalBlank = 1;
         currentAT = previousAT = 0;
@@ -1734,9 +1781,14 @@ void Nes::Ppu::Step() {
         if ( control & ControlFlag_GenerateNMI )
             cpu->SetNMI();
     }
+    // Vertical bland END.
     if ( scanline == 261 && pixelCycle == 0 )
         verticalBlank = 0;
 
+    // PPU A12 pin signaling, used by MMC3 mapper.
+    if ( SpriteHeight() == 16 ) {
+        memoryController->PpuAddress12( (v >> 12) & 0x1 );
+    }
 
     IncrementPixelCycle();
 }
@@ -1797,13 +1849,15 @@ void Nes::Screen::WritePixel( uint16 scanline, uint16 pixel, uint32 color ) {
 
 //////////////////////////////////////////////////////////////////////////
 const uint8 apuLenghtCounterTable[] = { 10, 254, 20,  2, 40,  4, 80,  6, 
-                                        161,  8, 60, 10, 14, 12, 26, 14,
+                                        160,  8, 60, 10, 14, 12, 26, 14,
                                         12, 16, 24, 18, 48, 20, 96, 22, 
                                         192, 24, 72, 26, 16, 28, 32, 30 };
 
 // Polynomial approximation of channels outputs
 float apuPulseTable[31];
 float apuTNDTable[203];
+
+static uint32 sAPUFrameCounterCyclesNTSC[] = { 7457, 14911, 22371, 29828, 29829, 29830 };
 
 static const uint32 CpuClockRate = 1789773;
 static const uint32 SampleRate = 44100;
@@ -1863,9 +1917,16 @@ void Nes::Apu::Reset() {
     }
 
     frameCycle = 0;
+    currentPhase = 0;
+    maxPhases = 6;
+
+    lastCpuCycle = 0;
+    frameCounterCycles = sAPUFrameCounterCyclesNTSC;
 
     frameCounter.Reset();
     dmc.Reset();
+
+    frameCounter.mode = 1;
 }
 
 void Nes::Apu::Tick() {
@@ -1874,6 +1935,21 @@ void Nes::Apu::Tick() {
         externalApu->run_until( cpu->frameCycles - 1 );
     }
 #else
+
+    int64 deltaCpuCycles = cpu->cycles - lastCpuCycle;
+    if ( deltaCpuCycles <= 0 ) {
+        return;
+    }
+
+    while ( deltaCpuCycles-- ) {
+        Step();
+    }
+    lastCpuCycle = cpu->cycles;
+
+#endif // NES_EXTERNAL_APU
+}
+
+void Nes::Apu::Step() {
     // f = set interrupt flag
     // l = clock length counters and sweep units
     // e = clock envelopes and triangle's linear counter
@@ -1893,64 +1969,47 @@ void Nes::Apu::Tick() {
     // Step timers
     // The triangle channel's timer is clocked on every CPU cycle, but the pulse, noise, and DMC timers
     // are clocked only on every second CPU cycle and thus produce only even periods.
-    if ( (frameCycle % 2) == 0 ) {
+    if ( ( cpu->cycles % 2 ) == 0 ) {
         pulse1.TickTimer();
         pulse2.TickTimer();
 
         dmc.TickTimer();
     }
 
+    ++frameCycle;
+
+    static uint64 lastcpuCyclePerPhase[] = { 0,0,0,0,0,0 };
+    //cpu->cycles - lastcpuCyclePerPhase[currentPhase] > frameCounterCycles[currentPhase]
     // Update components
-    switch (frameCounter.mode) {
+    switch ( frameCounter.mode ) {
+
         case 0: {
-            // NTSC
-            // Timings coming from Blargg tests
-            switch (frameCycle) {
-                case 7457: {
-                    // Step 1
-                    // 7459  Clock linear
-                    TickQuarterFrame();
 
-                    break;
+            if ( frameCycle > frameCounterCycles[currentPhase] ) {
+            //if ( cpu->cycles - lastcpuCyclePerPhase[currentPhase] > frameCounterCycles[currentPhase] ) {
+
+                static uint64 lastcpuCycle = 0;
+            
+                //PrintFormat( "APU phase %u, framecycle %llu, cpucycle %llu, last phase %llu, previous frame %llu\n", currentPhase, frameCycle, cpu->cycles, cpu->cycles - lastcpuCycle, cpu->cycles - lastcpuCyclePerPhase[currentPhase] );
+
+                //const uint64 phaseDuration = cpu->cycles - lastcpuCycle;
+
+                lastcpuCycle = cpu->cycles;
+                lastcpuCyclePerPhase[currentPhase] = lastcpuCycle;
+
+                if ( currentPhase >= 3 ) {
+                    frameCounter.TriggerIRQ( cpu );
                 }
 
-                case 14911: {
-                    // Step 2
-                    // 14915 Clock linear & length
+                if ( currentPhase == 0 || currentPhase == 2 )
+                    TickQuarterFrame();
+                else if ( currentPhase == 1 || currentPhase == 4 )
                     TickHalfFrame();
 
-                    break;
-                }
-
-                case 22371: {
-                    // Step 3
-                    // 22373 Clock linear
-                    TickQuarterFrame();
-                    
-                    break;
-                }
-
-                case 29828: {
-                    // 29830 Set frame irq
-                    frameCounter.TriggerIRQ( cpu );
-                    break;
-                }
-
-                case 29829: {
-                    // Step 4
-                    // 29831 Clock linear & length and set frame irq
-                    TickHalfFrame();
-
-                    frameCounter.TriggerIRQ( cpu );
-
-                    break;
-                }
-
-                case 29830: {
-                    // 29832 Set frame irq
-                    frameCounter.TriggerIRQ( cpu );
-
-                    break;
+                ++currentPhase;
+                if ( currentPhase == maxPhases ) {
+                    frameCycle = 0;
+                    currentPhase = 0;
                 }
             }
 
@@ -1961,83 +2020,61 @@ void Nes::Apu::Tick() {
             // PAL
             // Timings coming from Blargg tests
             switch ( frameCycle ) {
-                case 7459: {
-                    // Step 1
-                    // 7459  Clock linear
-                    TickQuarterFrame();
+            case 7459: {
+                // Step 1
+                // 7459  Clock linear
+                TickQuarterFrame();
 
-                    break;
-                }
+                break;
+            }
 
-                case 14915: {
-                    // Step 2
-                    // 14915 Clock linear & length
-                    TickHalfFrame();
+            case 14915: {
+                // Step 2
+                // 14915 Clock linear & length
+                TickHalfFrame();
 
-                    break;
-                }
+                break;
+            }
 
-                case 22373: {
-                    // Step 3
-                    // 22373 Clock linear
-                    TickQuarterFrame();
-                    
-                    break;
-                }
+            case 22373: {
+                // Step 3
+                // 22373 Clock linear
+                TickQuarterFrame();
 
-                case 29829: {
-                    // Empty
-                    break;
-                }
+                break;
+            }
 
-                case 37283: {
-                    // Step 4
-                    // 29831 Clock linear & length and set frame irq
-                    TickHalfFrame();
+            case 29829: {
+                // Empty
+                break;
+            }
 
-                    break;
-                }
+            case 37283: {
+                // Step 4
+                // 29831 Clock linear & length and set frame irq
+                TickHalfFrame();
+
+                break;
+            }
             }
             break;
         }
     }
 
     // 40 = 1789773 / 44100
-    if (frameCycle % (CpuClockRate / SampleRate) == 0)  {
+    if ( frameCycle % ( CpuClockRate / SampleRate ) == 0 ) {
 
         static float previousSample = 0;
 
         float soundValue = OutputSound();
 
         float delta = soundValue - previousSample;
-        int32 deltaInt = (int32)(delta * 32768.0f);
+        int32 deltaInt = (int32)( delta * 32768.0f );
 
         deltaInt = deltaInt > 32768 ? 32768 : deltaInt;
         deltaInt = deltaInt < -32768 ? -32768 : deltaInt;
 
         previousSample = soundValue;
-    }
-
-    ++frameCycle;
-
-    switch (frameCounter.mode) {
-        case 0: {
-            // Step 1
-            // 37289 Clock linear
-            if (frameCycle >= 37291) {
-                frameCycle = 7457;
-            }
-
-            break;
-        }
-
-        case 1: {
-            if (frameCycle >= 37283) {
-                frameCycle = 0;
-            }
-
-            break;
-        }
     }
 
     // Delay the update of the frame counter
@@ -2046,16 +2083,18 @@ void Nes::Apu::Tick() {
 
         if ( frameCounter.dataWriteDelay == 0 ) {
 
-            frameCounter.mode = (frameCounter.data & FrameCounter::RegisterFlags_Mode) == FrameCounter::RegisterFlags_Mode ? 1 : 0;
-            
+            frameCounter.mode = ( frameCounter.data & FrameCounter::RegisterFlags_Mode ) == FrameCounter::RegisterFlags_Mode ? 1 : 0;
+
             if ( frameCounter.mode == 1 ) {
                 // Clock immediately
                 TickHalfFrame();
             }
+
+            currentPhase = 0;
+            frameCycle = 0;
+            //lastCpuCycle = cpu->cycles;
         }
     }
-
-#endif // NES_EXTERNAL_APU
 }
 
 void Nes::Apu::TickHalfFrame() {
@@ -2083,12 +2122,18 @@ void Nes::Apu::EndFrame(uint32 count) {
     }
 #else
     
-    int16 remainingCycles = cpu->frameCycles - frameCycle;
-    if ( remainingCycles > 0 ) {
-        while ( remainingCycles-- ) {
-            Tick();
-        }
-    }
+    //PrintFormat( "APU Before EndFrame %llu\n", cpu->cycles );
+    Tick();
+
+    //PrintFormat( "APU After EndFrame %llu\n", cpu->cycles );
+    //int16 remainingCycles = cpu->frameCycles - frameCycle;
+    //if ( remainingCycles > 0 ) {
+    //    while ( remainingCycles-- ) {
+    //        Tick();
+    //    }
+
+    //    //blipBuffer->end_frame( remainingCycles );
+    //}
     
 #endif
 }
@@ -2146,6 +2191,8 @@ void Nes::Apu::CpuWrite( uint16 address, uint8 data ) {
     }
 
 #else
+    Tick();
+
     switch ( address ) {
         case 0x4000:
             pulse1.WriteControl( data );
@@ -2214,12 +2261,16 @@ void Nes::Apu::CpuWrite( uint16 address, uint8 data ) {
             // Writing to this register clears the DMC interrupt flag.
             cpu->ClearIRQ( Cpu::IRQSource_DMC );
 
+            //PrintFormat( "APU Status %X %llu\n", data, cpu->cycles );
+
             break;
         }
 
         case $4017_FrameCounter: {
 
             frameCounter.data = data;
+
+            //PrintFormat( "APU FrameCounter %X %llu\n", data, cpu->cycles );
 
             if ( (data & FrameCounter::RegisterFlags_InhibitIRQ) == FrameCounter::RegisterFlags_InhibitIRQ ) {
                 frameCounter.hasIRQ = false;
@@ -2673,7 +2724,11 @@ void Nes::Reset() {
 }
 
 void Nes::LoadRom( cstring path ) {
-    
+    // GSFlow: 1.1
+    // GSTag: [ROM] [UI] [EMULATION]
+    // 1.1.1 - LoadRom will copy the PRG/CHR memory from the ROM file and discover the mapper index, based on INES format.
+    // 1.1.2 - MemoryController will load the Mapper accordingly. Using inheritance here for simplicity.
+    // 1.1.3 - Reset the different components (CPU, PPU, APU, ...)
     if ( cart.LoadRom( path ) ) {
         memoryController.LoadMapper();
         Reset();

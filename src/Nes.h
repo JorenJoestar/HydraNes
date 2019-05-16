@@ -11,9 +11,10 @@
 #define NES_TEST_ASM
 #if defined(HY_DEBUG)
     #define NES_TEST_PPU_CYCLE
+    #define NES_TEST_APU_CYCLE
 #endif // HY_DEBUG
 
-//#define NES_EXTERNAL_APU
+#define NES_EXTERNAL_APU
 
 struct Options;
 
@@ -89,7 +90,7 @@ namespace hydra {
             virtual uint8   PrgRead( uint16 address ) = 0;
             virtual void    PrgWrite( uint16 address, uint8 data ) = 0;
 
-            virtual void    PpuAddress12Rise() { }
+            virtual void    PpuAddress12( uint8 value ) { }
         }; // struct Mapper
 
         // NROM128/NROM256
@@ -199,7 +200,7 @@ namespace hydra {
             uint8           PrgRead( uint16 address ) override;
             void            PrgWrite( uint16 address, uint8 data ) override;
 
-            void            PpuAddress12Rise() override;
+            void            PpuAddress12( uint8 value ) override;
 
             void            UpdateBanks();
             void            UpdateMirroring();
@@ -305,7 +306,7 @@ namespace hydra {
             uint8               PpuRead( uint16 address );
             void                PpuWrite( uint16 address, uint8 data );
 
-            void                PpuAddress12Rise();
+            void                PpuAddress12( uint8 value );
         }; // struct MemoryController
 
         // general architecture
@@ -1302,7 +1303,8 @@ namespace hydra {
 
             void                    Init(Cpu* cpu);
             void                    Reset();
-            void                    Tick();
+            void                    Tick(); // Calculate how many steps needed.
+            void                    Step(); // Perform the actual apu operations.
 
             void                    TickHalfFrame();
             void                    TickQuarterFrame();
@@ -1335,8 +1337,19 @@ namespace hydra {
 
 			uint16					frameCycle;			// count cycles from the CPU
 
+            uint16                  currentPhase;
+            uint16                  maxPhases;
+            uint32*                 frameCounterCycles;
+            uint64                  lastCpuCycle;
+
             float                   volume;
             bool                    mute;
+
+#if defined(NES_TEST_APU_CYCLE)
+            struct ApuDebugger {
+
+            };
+#endif // NES_TEST_APU_CYCLE
 
             Blip_Buffer*            blipBuffer = nullptr;
 

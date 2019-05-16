@@ -9,7 +9,7 @@
   </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>..\src;..\external\include;..\..\hydraKernel\src</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\src;..\external\include</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>

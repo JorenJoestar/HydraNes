@@ -22,7 +22,7 @@
     <ProjectGuid>{DC481847-FF83-44A5-B88E-D0D31DDFA80A}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>HydraNes</RootNamespace>
-    <WindowsTargetPlatformVersion>10.0.16299.0</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion>10.0.17763.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
@@ -106,15 +106,15 @@
       </PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>HY_OPENGL;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>..\src;..\src\apu\include\;..\external\include;$(LIB_PATH)\glew-1.13.0\include\;$(LIB_PATH)\glm</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;HY_OPENGL;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>..\src;..\src\apu\include\;$(LIB_PATH)\glm;..\external\include</AdditionalIncludeDirectories>
       <SupportJustMyCode>false</SupportJustMyCode>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalDependencies>xinput.lib;xaudio2.lib;opengl32.lib;glew32.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>..\External\lib\Release\x64;</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>..\external\lib\Release\x64;</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -142,8 +142,8 @@
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <PreprocessorDefinitions>HY_OPENGL;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>..\src;..\src\apu\include\;..\external\include;$(LIB_PATH)\glew-1.13.0\include\;$(LIB_PATH)\glm</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;HY_OPENGL;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>..\src;..\src\apu\include\;$(LIB_PATH)\glm;..\external\include</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -166,9 +166,12 @@
     <ClCompile Include="..\src\APU\Sound_Queue.cpp" />
     <ClCompile Include="..\src\Hydra\Application\Application.cpp" />
     <ClCompile Include="..\src\Hydra\imgui\imgui.cpp" />
-    <ClCompile Include="..\src\Hydra\imgui\imgui_demo.cpp" />
+    <ClCompile Include="..\src\Hydra\imgui\imgui_demo.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+    </ClCompile>
     <ClCompile Include="..\src\Hydra\imgui\imgui_draw.cpp" />
     <ClCompile Include="..\src\Hydra\imgui\imgui_hydra.cpp" />
+    <ClCompile Include="..\src\Hydra\imgui\imgui_widgets.cpp" />
     <ClCompile Include="..\src\Hydra\Kernel\File.cpp" />
     <ClCompile Include="..\src\Hydra\Kernel\Input.cpp" />
     <ClCompile Include="..\src\Hydra\Kernel\Lib.cpp" />
@@ -189,6 +192,9 @@
     <ClInclude Include="..\src\Hydra\imgui\imgui.h" />
     <ClInclude Include="..\src\Hydra\imgui\imgui_hydra.h" />
     <ClInclude Include="..\src\Hydra\imgui\imgui_internal.h" />
+    <ClInclude Include="..\src\Hydra\imgui\imstb_rectpack.h" />
+    <ClInclude Include="..\src\Hydra\imgui\imstb_textedit.h" />
+    <ClInclude Include="..\src\Hydra\imgui\imstb_truetype.h" />
     <ClInclude Include="..\src\Hydra\imgui\stb_rect_pack.h" />
     <ClInclude Include="..\src\Hydra\imgui\stb_textedit.h" />
     <ClInclude Include="..\src\Hydra\imgui\stb_truetype.h" />

@@ -78,7 +78,7 @@ void MemoryEditor::Draw( const char* title, unsigned char* mem_data, int mem_siz
                     bool data_write = false;
                     if ( DataEditingTakeFocus ) {
                         ImGui::SetKeyboardFocusHere();
-                        sprintf( AddrInput, "%0*X", addr_digits_count, base_display_addr + addr );
+                        sprintf( AddrInput, "%0*zX", addr_digits_count, base_display_addr + addr );
                         sprintf( DataInput, "%02X", mem_data[addr] );
                     }
                     ImGui::PushItemWidth( ImGui::CalcTextSize( "FF" ).x );

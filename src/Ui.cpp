@@ -30,7 +30,7 @@ inline void SetupImGuiStyle( bool bStyleDark_ ) {
     style.Colors[ImGuiCol_ScrollbarGrab] = ImVec4( 0.69f, 0.69f, 0.69f, 0.80f );
     style.Colors[ImGuiCol_ScrollbarGrabHovered] = ImVec4( 0.49f, 0.49f, 0.49f, 0.80f );
     style.Colors[ImGuiCol_ScrollbarGrabActive] = ImVec4( 0.49f, 0.49f, 0.49f, 1.00f );
-    style.Colors[ImGuiCol_ComboBg] = ImVec4( 0.86f, 0.86f, 0.86f, 0.99f );
+    //style.Colors[ImGuiCol_ComboBg] = ImVec4( 0.86f, 0.86f, 0.86f, 0.99f );
     style.Colors[ImGuiCol_CheckMark] = ImVec4( 0.26f, 0.59f, 0.98f, 1.00f );
     style.Colors[ImGuiCol_SliderGrab] = ImVec4( 0.26f, 0.59f, 0.98f, 0.78f );
     style.Colors[ImGuiCol_SliderGrabActive] = ImVec4( 0.26f, 0.59f, 0.98f, 1.00f );
@@ -46,9 +46,9 @@ inline void SetupImGuiStyle( bool bStyleDark_ ) {
     style.Colors[ImGuiCol_ResizeGrip] = ImVec4( 1.00f, 1.00f, 1.00f, 0.50f );
     style.Colors[ImGuiCol_ResizeGripHovered] = ImVec4( 0.26f, 0.59f, 0.98f, 0.67f );
     style.Colors[ImGuiCol_ResizeGripActive] = ImVec4( 0.26f, 0.59f, 0.98f, 0.95f );
-    style.Colors[ImGuiCol_CloseButton] = ImVec4( 0.59f, 0.59f, 0.59f, 0.50f );
-    style.Colors[ImGuiCol_CloseButtonHovered] = ImVec4( 0.98f, 0.39f, 0.36f, 1.00f );
-    style.Colors[ImGuiCol_CloseButtonActive] = ImVec4( 0.98f, 0.39f, 0.36f, 1.00f );
+    //style.Colors[ImGuiCol_CloseButton] = ImVec4( 0.59f, 0.59f, 0.59f, 0.50f );
+    //style.Colors[ImGuiCol_CloseButtonHovered] = ImVec4( 0.98f, 0.39f, 0.36f, 1.00f );
+    //style.Colors[ImGuiCol_CloseButtonActive] = ImVec4( 0.98f, 0.39f, 0.36f, 1.00f );
     style.Colors[ImGuiCol_PlotLines] = ImVec4( 0.39f, 0.39f, 0.39f, 1.00f );
     style.Colors[ImGuiCol_PlotLinesHovered] = ImVec4( 1.00f, 0.43f, 0.35f, 1.00f );
     style.Colors[ImGuiCol_PlotHistogram] = ImVec4( 0.90f, 0.70f, 0.00f, 1.00f );
@@ -94,8 +94,6 @@ NesUI::NesUI( MainState* main, Nes& nes ) : nes( nes ), main(main) {
     debuggerText = new ImGuiTextBuffer();
     memoryEditor = new MemoryEditor();
 
-    SetupImGuiStyle( true );
-
     controlWindow = cartridgeOpened = true;
 #if defined(HY_DEBUG)
     ppuDebugger = ppuStatus = mouseDebug = true;
@@ -113,6 +111,9 @@ NesUI::NesUI( MainState* main, Nes& nes ) : nes( nes ), main(main) {
 }
 
 void NesUI::Init() {
+
+    //SetupImGuiStyle( true );
+
     main->window->AddKeyCallback( NesUI_KeyCallback, this );
 }
 
@@ -418,7 +419,7 @@ void NesUI::DrawProfiler(WindowMean<32>& fpsValues, Profiler* previousProfiler) 
 
     ImGui::Separator();
 
-    ImGui::SetNextTreeNodeOpened( true );
+    ImGui::SetNextTreeNodeOpen( true );
     if ( ImGui::TreeNode( "Timing" ) ) {
         for ( const ProfilerSystem::CpuSample& s : samples ) {
             TimeStamp t = time::IntervalMilliseconds( s.end, s.start );

@@ -109,6 +109,7 @@ void InputUpdateSystem::Update() {
                 case window::events::Event_MouseWheel: {
                     const window::events::MouseWheel& inputEvent = e.GetEvent<window::events::MouseWheel>();
                     i._input.mouse.Z = inputEvent.delta;
+                    w.mouseWheelData.delta = inputEvent.delta;
                     break;
                 }
 

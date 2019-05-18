@@ -180,6 +180,14 @@ void Nes::Cpu::Reset() {
     PC = MemoryReadWord( kResetVector );
 }
 
+void Nes::Cpu::SaveState( Stream & stream )
+{
+}
+
+void Nes::Cpu::LoadState( Stream & stream )
+{
+}
+
 void Nes::Cpu::Tick() {
     
     // GSFlow: 3.1.3
@@ -416,6 +424,14 @@ bool Nes::Cart::LoadRom( cstring filename ) {
     return true;
 }
 
+void Nes::Cart::SaveState( Stream & stream )
+{
+}
+
+void Nes::Cart::LoadState( Stream & stream )
+{
+}
+
 //////////////////////////////////////////////////////////////////////////
 Nes::Mapper0::Mapper0( Cpu* cpu, Cart & cart ) : Mapper(cpu) {
     const uint16 romPrgBanks = cart.romHeader.prgRomPages;
@@ -443,6 +459,14 @@ uint8 Nes::Mapper0::PrgRead( uint16 address ) {
 void Nes::Mapper0::PrgWrite( uint16 address, uint8 data ) {
     address = (address - Nes::MemoryController::kPrgRomOffsetBank0) & prgAddressMask;
     prg[address] = data;
+}
+
+void Nes::Mapper0::SaveState( Stream & stream )
+{
+}
+
+void Nes::Mapper0::LoadState( Stream & stream )
+{
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -531,6 +555,14 @@ void Nes::Mapper1::PrgWrite( uint16 address, uint8 data ) {
             }
         } 
     }
+}
+
+void Nes::Mapper1::SaveState( Stream & stream )
+{
+}
+
+void Nes::Mapper1::LoadState( Stream & stream )
+{
 }
 
 void Nes::Mapper1::UpdateBanks() {
@@ -674,6 +706,14 @@ void Nes::Mapper2::PrgWrite( uint16 address, uint8 data ) {
     }
 }
 
+void Nes::Mapper2::SaveState( Stream & stream )
+{
+}
+
+void Nes::Mapper2::LoadState( Stream & stream )
+{
+}
+
 void Nes::Mapper2::UpdatePrgBank() {
     const uint8 bankIndex = prgBankSelector & 0xF;
     prgBank0 = prg + (kPrgBankSize * bankIndex);
@@ -711,6 +751,14 @@ void Nes::Mapper3::PrgWrite( uint16 address, uint8 data ) {
         chrBankSelector = data;
         UpdateChrBank();
     }
+}
+
+void Nes::Mapper3::SaveState( Stream & stream )
+{
+}
+
+void Nes::Mapper3::LoadState( Stream & stream )
+{
 }
 
 void Nes::Mapper3::UpdateChrBank() {
@@ -826,6 +874,14 @@ void Nes::Mapper4::PrgWrite( uint16 address, uint8 data ) {
             }
         }
     }
+}
+
+void Nes::Mapper4::SaveState( Stream & stream )
+{
+}
+
+void Nes::Mapper4::LoadState( Stream & stream )
+{
 }
 
 void Nes::Mapper4::PpuAddress12( uint8 value ) {
@@ -1090,6 +1146,14 @@ void Nes::MemoryController::PpuWrite( uint16 address, uint8 data ) {
 
 void Nes::MemoryController::PpuAddress12( uint8 value ) {
     mapper->PpuAddress12( value );
+}
+
+void Nes::MemoryController::SaveState( Stream & stream )
+{
+}
+
+void Nes::MemoryController::LoadState( Stream & stream )
+{
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -1573,6 +1637,14 @@ uint32 Nes::Ppu::GetPaletteColor( uint8 index ) {
     return nesRgb[index];
 }
 
+void Nes::Ppu::SaveState( Stream & stream )
+{
+}
+
+void Nes::Ppu::LoadState( Stream & stream )
+{
+}
+
 void Nes::Ppu::ReloadShiftRegisters() {
     // After 8 shifts the high bits contain the now previous tile.
     // Copy the current tile data in the lower 8 bits.
@@ -1845,6 +1917,14 @@ void Nes::Screen::Terminate() {
 
 void Nes::Screen::WritePixel( uint16 scanline, uint16 pixel, uint32 color ) {
     frameBuffer[scanline * 256 + pixel] = color;
+}
+
+void Nes::Screen::SaveState( Stream & stream )
+{
+}
+
+void Nes::Screen::LoadState( Stream & stream )
+{
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -2332,6 +2412,14 @@ void Nes::Apu::SetVolume( float value ) {
 #endif
 }
 
+void Nes::Apu::SaveState( Stream & stream )
+{
+}
+
+void Nes::Apu::LoadState( Stream & stream )
+{
+}
+
 //////////////////////////////////////////////////////////////////////////
 void Nes::Apu::FrameCounter::Reset() {
     mode = 0;
@@ -2667,6 +2755,14 @@ void Nes::Controller::WriteState( uint8 strobe ) {
     
 }
 
+void Nes::Controller::SaveState( Stream & stream )
+{
+}
+
+void Nes::Controller::LoadState( Stream & stream )
+{
+}
+
 //////////////////////////////////////////////////////////////////////////
 
 
@@ -2756,11 +2852,11 @@ void Nes::SaveSRAM() {
     }
 }
 
-void Nes::SaveState( cstring path ) {
+void Nes::SaveState( Stream& stream ) {
 
 }
 
-void Nes::LoadState( cstring path ) {
+void Nes::LoadState( Stream& stream ) {
 
 }
 

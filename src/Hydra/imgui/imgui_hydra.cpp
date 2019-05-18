@@ -18,8 +18,6 @@ namespace hydra {
 // Data
 //static GLFWwindow*  g_Window = NULL;
 static hydra::Time  g_Time = time::Now();
-static bool         g_MousePressed[3] = { false, false, false };
-static float        g_MouseWheel = 0.0f;
 
 #if defined(HY_OPENGL)
 static GLuint       g_FontTexture = 0;
@@ -28,6 +26,7 @@ static GLuint       g_FontTexture = 0;
 static int          g_ShaderHandle = 0;
 static int          g_AttribLocationTex = 0, g_AttribLocationProjMtx = 0;
 static unsigned int g_VboHandle = 0, g_VaoHandle = 0, g_ElementsHandle = 0;
+static float        g_MouseWheelScrollScale = 1.f / 120.f;
 
 //////////////////////////////////////////////////////////////////////////
 gfx::ShaderStateHandle g_ShaderState;
@@ -128,11 +127,12 @@ static const char* ImGui_ImplGlfwGL3_GetClipboardText( void* userData ) {
 static void ImGui_ImplGlfwGL3_SetClipboardText( void* userData, const char* text ) {
   //  glfwSetClipboardString( g_Window, text );
 }
-/*
-void ImGui_ImplGlfwGL3_ScrollCallback( GLFWwindow*, double xoffset, double yoffset ) {
-    g_MouseWheel += (float)yoffset; // Use fractional mouse wheel, 1.0 unit 5 lines.
+
+void ImGui_ImplGlfwGL3_ScrollCallback( void* userData, const window::callbacks::MouseWheelData& data ) {
+    ImGuiIO& io = ImGui::GetIO();
+    io.MouseWheel += (float)data.delta * g_MouseWheelScrollScale;
 }
-*/
+
 void ImGui_ImplGlfwGL3_KeyCallback( void* userData, const window::callbacks::KeyModifiedData& data ) {
     ImGuiIO& io = ImGui::GetIO();
     // TODO: add proper value.
@@ -311,14 +311,11 @@ void ImGuiInit( WindowSystem& window, gfx::RenderDevice& rd ) {
     io.ImeWindowHandle = window.handle;
 #endif // _WIN32
 
+#endif // HY_OPENGL
     window.AddKeyCallback( ImGui_ImplGlfwGL3_KeyCallback, nullptr );
     window.AddCharCallback( ImGui_ImplGlfwGL3_CharCallback, nullptr );
     window.AddFocusCallback( ImGui_ImplGlfwGL3_FocusCallback, nullptr );
-#endif // HY_OPENGL
-/*
-    glfwSetMouseButtonCallback( window, ImGui_ImplGlfwGL3_MouseButtonCallback );
-    glfwSetScrollCallback( window, ImGui_ImplGlfwGL3_ScrollCallback );
-    */
+    window.AddMouseWheelCallback( ImGui_ImplGlfwGL3_ScrollCallback, nullptr );
 }
 
 void ImGuiTerminate( gfx::RenderDevice& rd ) {
@@ -344,8 +341,7 @@ void ImGuiNewFrame( WindowSystem& window, input::InputSystem& i, gfx::RenderDevi
     io.DeltaTime = (float)( time::IntervalMilliseconds( current_time, g_Time ) / 1000.0f) + 0.0000001f;
     g_Time = current_time;
 
-    // Setup inputs
-    // (we already got mouse wheel, keyboard keys & characters from glfw callbacks polled in glfwPollEvents())
+    // Setup inputs that are not bound to callbacks.
 
     // Mouse position
     if ( window.flags.test(WindowSystem::Flags_inFocus) ) {
@@ -360,13 +356,8 @@ void ImGuiNewFrame( WindowSystem& window, input::InputSystem& i, gfx::RenderDevi
         io.MouseDown[i] = buttonWasDown;    // If a mouse press event came, always pass it as "mouse held this frame", so we don't miss click-release events that are shorter than 1 frame.
     }
 
-    io.MouseWheel = (float)input.mouse.Z;
-
-
-    // Hide OS mouse cursor if ImGui is drawing it
-    //glfwSetInputMode( g_Window, GLFW_CURSOR, io.MouseDrawCursor ? GLFW_CURSOR_HIDDEN : GLFW_CURSOR_NORMAL );
-
     // Start the frame
     ImGui::NewFrame();
 }
-}
+
+} // namespace hydra

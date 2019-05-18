@@ -215,7 +215,7 @@ namespace hydra {
     namespace window {
         namespace callbacks {
             enum Types {
-                Type_RequestExit, Type_CharWritten, Type_KeyModified, Type_WindowResize, Type_ChangeFocus, Type_ChangeDevice
+                Type_RequestExit, Type_CharWritten, Type_KeyModified, Type_WindowResize, Type_ChangeFocus, Type_ChangeDevice, Type_MouseWheel
             };
 
             //enum Mask {
@@ -249,12 +249,17 @@ namespace hydra {
                 uint8                   deviceAdded;
             };
 
+            struct MouseWheelData {
+                int16                   delta;
+            };
+
             using RequestExit = void (*)( void* userData );
             using KeyModified = void (*)( void* userData, const KeyModifiedData& );
             using CharModified = void (*)(void* userData, const CharModifiedData& );
             using WindowResized = void (*)( void* userData, const WindowResizeData& );
             using ChangeFocus = void (*)( void* userData, const ChangeFocusData& );
             using ChangeDevice = void( *)( void* userData, const ChangeDeviceData& );
+            using ChangeMouseWheel = void (*)( void* userData, const MouseWheelData& );
         } // namespace callbacks
 
         namespace events {
@@ -329,6 +334,7 @@ namespace hydra {
         void                            AddResizeCallback( window::callbacks::WindowResized callback, void* userData );
         void                            AddFocusCallback( window::callbacks::ChangeFocus callback, void* userData );
         void                            AddDeviceCallback( window::callbacks::ChangeDevice callback, void* userData );
+        void                            AddMouseWheelCallback( window::callbacks::ChangeMouseWheel callback, void* userData );
         
         ProcessHandle                   processHandle;
         WindowHandle                    handle;
@@ -373,6 +379,10 @@ namespace hydra {
         Array<window::callbacks::ChangeDevice>  deviceCallbacks;
         window::callbacks::ChangeDeviceData     deviceData;
         Array<void*>                            deviceCallbackUserData;
+
+        Array<window::callbacks::ChangeMouseWheel> mouseWheelCallbacks;
+        window::callbacks::MouseWheelData       mouseWheelData;
+        Array<void*>                            mouseWheelCallbackUserData;
 
         Flag                                    callbacksActivationMask;
     };

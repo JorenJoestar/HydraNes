@@ -182,7 +182,6 @@
     <ClCompile Include="..\src\Hydra\Renderer\Renderer.cpp" />
     <ClCompile Include="..\src\Hydra\Renderer\RendererOpenGL.cpp" />
     <ClCompile Include="..\src\main.cpp" />
-    <ClCompile Include="..\src\MemoryEditor.cpp" />
     <ClCompile Include="..\src\Nes.cpp" />
     <ClCompile Include="..\src\Ui.cpp" />
   </ItemGroup>
@@ -195,9 +194,6 @@
     <ClInclude Include="..\src\Hydra\imgui\imstb_rectpack.h" />
     <ClInclude Include="..\src\Hydra\imgui\imstb_textedit.h" />
     <ClInclude Include="..\src\Hydra\imgui\imstb_truetype.h" />
-    <ClInclude Include="..\src\Hydra\imgui\stb_rect_pack.h" />
-    <ClInclude Include="..\src\Hydra\imgui\stb_textedit.h" />
-    <ClInclude Include="..\src\Hydra\imgui\stb_truetype.h" />
     <ClInclude Include="..\src\Hydra\Kernel\Assert.h" />
     <ClInclude Include="..\src\Hydra\Kernel\DataStructures.h" />
     <ClInclude Include="..\src\Hydra\Kernel\DataStructures.hpp" />
@@ -216,7 +212,6 @@
     <ClInclude Include="..\src\Hydra\Renderer\RenderSystem.h" />
     <ClInclude Include="..\src\INIReader.h" />
     <ClInclude Include="..\src\Main.h" />
-    <ClInclude Include="..\src\MemoryEditor.h" />
     <ClInclude Include="..\src\Nes.h" />
     <ClInclude Include="..\src\Ui.h" />
   </ItemGroup>

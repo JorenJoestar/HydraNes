@@ -2,7 +2,7 @@
 
 #include "hydra/imgui/imgui.h"
 #include "Main.h"
-#include "MemoryEditor.h"
+#include "hydra/imgui/imgui_memory_editor.h"
 
 namespace hydra {
 
@@ -119,10 +119,13 @@ void NesUI::Init() {
 
 void NesUI::DrawControlWindow() {
     if ( controlWindow ) {
-        const char* statusLabels[] = { "Step", "Continuous", "Stopped" };
-        ImGui::Text( "Status: %s", statusLabels[main->simulationType] );
         
         ImGui::Begin( "Simulation Control", &controlWindow, ImGuiWindowFlags_MenuBar );
+        
+        ImGui::Separator();
+        ImGui::Text( "Emulation" );
+        const char* statusLabels[] = { "Step", "Play", "Stop" };
+        ImGui::Text( "Status: %s", statusLabels[main->simulationType] );
 
         if ( main->simulationType == MainState::type_continuous ) {
             if ( ImGui::Button( "Stop" ) ) {
@@ -133,7 +136,23 @@ void NesUI::DrawControlWindow() {
                 main->simulationType = MainState::type_continuous;
             }
         }
-        ImGui::SameLine();
+
+        if ( ImGui::Button( "Reset" ) ) {
+            nes.Reset();
+        }
+
+        ImGui::Separator();
+        ImGui::Text( "States" );
+        if ( ImGui::Button( "Save State" ) ) {
+            main->SaveState();
+        }
+
+        if ( ImGui::Button( "Load State" ) ) {
+            main->LoadState();
+        }
+
+        ImGui::Separator();
+        ImGui::Text( "Debug" );
         if ( ImGui::Button( "Single Step" ) ) {
 
             nes.cpu.Step();
@@ -165,15 +184,11 @@ void NesUI::DrawControlWindow() {
 
         nes.cpu.showAsm = main->simulationType == MainState::type_continuous ? false : showASM;
 
-        if ( ImGui::Button( "Reset" ) ) {
-            nes.Reset();
-        }
-
         ImGui::Separator();
-
+        ImGui::Text( "Memory" );
         // Combo using proper array. You can also pass a callback to retrieve array value, no need to create/copy an array just for that.
-        static const char* memoryTypes[] = { "ChrRom", "ChrRam", "PrgRom", "PrgRam", "Nametable", "PaletteTable", "CPU Ram" };
-        ImGui::Combo( "Memory Debug", (int*)&memoryDebugType, memoryTypes, ArrayLength( memoryTypes ) );
+        static const char* memoryTypes[] = { "ChrRom", "ChrRam", "PrgRom", "PrgRam", "Nametable", "PaletteTable", "CPU Ram", "None" };
+        ImGui::Combo( "Show", (int*)&memoryDebugType, memoryTypes, ArrayLength( memoryTypes ) );
 
         ImGui::End();
     }
@@ -181,7 +196,7 @@ void NesUI::DrawControlWindow() {
 
 void NesUI::DrawDebugger() {
     if ( debugger ) {
-        ImGui::Begin( "Debugger", &debugger );
+        ImGui::Begin( "CPU Debugger", &debugger );
 
         if ( ImGui::Button( "Clear" ) ) {
             debuggerText->clear();
@@ -338,31 +353,31 @@ void NesUI::DrawMemoryViewer() {
     switch ( memoryDebugType ) {
 
         case EMemory_ChrRom:
-            memoryEditor->Draw( "Chr Rom", nes.cart.chrRom.begin(), nes.cart.chrRom.size(), 0 );
+            memoryEditor->DrawWindow( "Chr Rom", nes.cart.chrRom.begin(), nes.cart.chrRom.size(), 0 );
             break;
 
         case EMemory_ChrRam:
-            memoryEditor->Draw( "Chr Ram", &nes.cart.chrRam[0], Nes::kChrBankSize, 0 );
+            memoryEditor->DrawWindow( "Chr Ram", &nes.cart.chrRam[0], Nes::kChrBankSize, 0 );
             break;
 
         case EMemory_PrgRom:
-            memoryEditor->Draw( "Prg Rom", nes.cart.prgRom.begin(), nes.cart.prgRom.size(), 0 );
+            memoryEditor->DrawWindow( "Prg Rom", nes.cart.prgRom.begin(), nes.cart.prgRom.size(), 0 );
             break;
 
         case EMemory_PrgRam:
-            memoryEditor->Draw( "Prg Ram", nes.cart.prgRam.begin(), nes.cart.prgRam.size(), 0 );
+            memoryEditor->DrawWindow( "Prg Ram", nes.cart.prgRam.begin(), nes.cart.prgRam.size(), 0 );
             break;
 
         case EMemory_PPU_NametableRam:
-            memoryEditor->Draw( "Nametable", &nes.ppu.nametableRam[0], Nes::Ppu::kNameTableRamSize, 0 );
+            memoryEditor->DrawWindow( "Nametable", &nes.ppu.nametableRam[0], Nes::Ppu::kNameTableRamSize, 0 );
             break;
 
         case EMemory_PPU_PalettetableRam:
-            memoryEditor->Draw( "Palette", &nes.ppu.paletteRam[0], Nes::Ppu::kPaletteRamSize , 0 );
+            memoryEditor->DrawWindow( "Palette", &nes.ppu.paletteRam[0], Nes::Ppu::kPaletteRamSize , 0 );
             break;
 
         case EMemory_CPU_Ram:
-            memoryEditor->Draw( "CPU Ram", &nes.cpu.ram[0], Nes::Cpu::kRamSize, 0 );
+            memoryEditor->DrawWindow( "CPU Ram", &nes.cpu.ram[0], Nes::Cpu::kRamSize, 0 );
             break;
     }
     

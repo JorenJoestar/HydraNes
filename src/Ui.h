@@ -42,7 +42,7 @@ namespace hydra {
 
         void            ChangeDirectory();
 
-        MainState*      main;
+        MainState*      main = nullptr;
         Nes&            nes;
 
         EMemoryDebugType memoryDebugType = EMemory_Count;
@@ -78,6 +78,6 @@ namespace hydra {
         String          cwd, lastDirectory;
 
         MemoryEditor*   memoryEditor;
-        ImGuiTextBuffer*     debuggerText;
+        ImGuiTextBuffer* debuggerText;
     };
 }

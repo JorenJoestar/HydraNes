@@ -13,6 +13,7 @@ typedef unsigned cpu_addr_t; // 16-bit memory address
 
 struct apu_snapshot_t;
 class Nonlinear_Buffer;
+struct Stream;
 
 class Nes_Apu {
 public:
@@ -94,6 +95,10 @@ public:
 	// Run APU until specified time, so that any DMC memory reads can be
 	// accounted for (i.e. inserting CPU wait states).
 	void run_until( cpu_time_t );
+
+    // Load/Save current state
+    void save_state( Stream& stream );
+    void load_state( Stream& stream );
 	
 // End of public interface.
 private:

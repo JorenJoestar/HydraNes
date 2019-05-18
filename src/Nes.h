@@ -17,6 +17,7 @@
 #define NES_EXTERNAL_APU
 
 struct Options;
+struct Stream;
 
 namespace hydra {
     struct Nes {
@@ -51,20 +52,23 @@ namespace hydra {
         //////////////////////////////////////////////////////////////////////////
         struct Cart {
 
-            static const uint32 kInvalidMapper = 0xffffffff;
+            static const uint32     kInvalidMapper = 0xffffffff;
 
-            Nes::RomHeader  romHeader;
-            Buffer          prgRom, chrRom, prgRam, chrRam;
+            Nes::RomHeader          romHeader;
+            Buffer                  prgRom, chrRom, prgRam, chrRam;
 
-            String          filename;
-            uint32          mapperIndex;
+            String                  filename;
+            uint32                  mapperIndex;
 
-            void            Init();
-            void            Reset();
+            void                    Init();
+            void                    Reset();
 
-            bool            IsCartridgeInserted() const { return mapperIndex != kInvalidMapper; }
+            bool                    IsCartridgeInserted() const { return mapperIndex != kInvalidMapper; }
 
-            bool            LoadRom( cstring filename );
+            bool                    LoadRom( cstring filename );
+
+            void                    SaveState( Stream& stream );
+            void                    LoadState( Stream& stream );
         }; // struct Cart
 
         //////////////////////////////////////////////////////////////////////////
@@ -78,19 +82,22 @@ namespace hydra {
                 Mirror4
             };
 
-            Mirroring       mirroring;
-            uint8           prgRamWrite = false;
-            Cpu*            cpu;
+            Mirroring               mirroring;
+            uint8                   prgRamWrite = false;
+            Cpu*                    cpu;
 
             Mapper( Cpu* cpu ) : cpu(cpu) { }
 
-            virtual uint8   ChrRead( uint16 address ) = 0;
-            virtual void    ChrWrite( uint16 address, uint8 data ) = 0;
+            virtual uint8           ChrRead( uint16 address ) = 0;
+            virtual void            ChrWrite( uint16 address, uint8 data ) = 0;
 
-            virtual uint8   PrgRead( uint16 address ) = 0;
-            virtual void    PrgWrite( uint16 address, uint8 data ) = 0;
+            virtual uint8           PrgRead( uint16 address ) = 0;
+            virtual void            PrgWrite( uint16 address, uint8 data ) = 0;
 
-            virtual void    PpuAddress12( uint8 value ) { }
+            virtual void            PpuAddress12( uint8 value ) { }
+
+            virtual void            SaveState( Stream& stream ) {}
+            virtual void            LoadState( Stream& stream ) {}
         }; // struct Mapper
 
         // NROM128/NROM256
@@ -98,15 +105,18 @@ namespace hydra {
 
             Mapper0( Cpu* cpu, Cart& cart );
 
-            uint8           ChrRead( uint16 address ) override;
-            void            ChrWrite( uint16 address, uint8 data ) override;
+            uint8                   ChrRead( uint16 address ) override;
+            void                    ChrWrite( uint16 address, uint8 data ) override;
 
-            uint8           PrgRead( uint16 address ) override;
-            void            PrgWrite( uint16 address, uint8 data ) override;
+            uint8                   PrgRead( uint16 address ) override;
+            void                    PrgWrite( uint16 address, uint8 data ) override;
 
-            uint16          prgAddressMask;
-            uint8*          prg;
-            uint8*          chr;
+            void                    SaveState( Stream& stream ) override;
+            void                    LoadState( Stream& stream ) override;
+
+            uint16                  prgAddressMask;
+            uint8*                  prg;
+            uint8*                  chr;
         }; // struct Mapper0
 
         // MMC1
@@ -114,13 +124,16 @@ namespace hydra {
 
             Mapper1( Cpu* cpu, Cart& cart );
 
-            uint8           ChrRead( uint16 address ) override;
-            void            ChrWrite( uint16 address, uint8 data ) override;
+            uint8                   ChrRead( uint16 address ) override;
+            void                    ChrWrite( uint16 address, uint8 data ) override;
 
-            uint8           PrgRead( uint16 address ) override;
-            void            PrgWrite( uint16 address, uint8 data ) override;
+            uint8                   PrgRead( uint16 address ) override;
+            void                    PrgWrite( uint16 address, uint8 data ) override;
 
-            void            UpdateBanks();
+            void                    SaveState( Stream& stream ) override;
+            void                    LoadState( Stream& stream ) override;
+
+            void                    UpdateBanks();
 
             // Internal registers
             enum Registers {
@@ -130,18 +143,18 @@ namespace hydra {
                 Register_Prg,
                 Register_Count
             };
-            uint8           registers[Register_Count];
-            uint8           writeCounter, temporaryRegister;
-            uint8           prgRomBankCount, chrRomBankCount;
+            uint8                   registers[Register_Count];
+            uint8                   writeCounter, temporaryRegister;
+            uint8                   prgRomBankCount, chrRomBankCount;
 
-            uint8*          prgRomBank0;
-            uint8*          prgRomBank1;
-            uint8*          chrRomBank0;
-            uint8*          chrRomBank1;
+            uint8*                  prgRomBank0;
+            uint8*                  prgRomBank1;
+            uint8*                  chrRomBank0;
+            uint8*                  chrRomBank1;
 
-            uint8*          prgRam;
-            uint8*          prg;
-            uint8*          chr;
+            uint8*                  prgRam;
+            uint8*                  prg;
+            uint8*                  chr;
         }; // struct Mapper0
 
         // UNROM
@@ -149,20 +162,23 @@ namespace hydra {
 
             Mapper2( Cpu* cpu, Cart& cart );
 
-            uint8           ChrRead( uint16 address ) override;
-            void            ChrWrite( uint16 address, uint8 data ) override;
+            uint8                   ChrRead( uint16 address ) override;
+            void                    ChrWrite( uint16 address, uint8 data ) override;
 
-            uint8           PrgRead( uint16 address ) override;
-            void            PrgWrite( uint16 address, uint8 data ) override;
+            uint8                   PrgRead( uint16 address ) override;
+            void                    PrgWrite( uint16 address, uint8 data ) override;
 
-            void            UpdatePrgBank();
+            void                    SaveState( Stream& stream ) override;
+            void                    LoadState( Stream& stream ) override;
 
-            uint8           prgBankSelector;
-            uint8*          prgBank0;
-            uint8*          prgBank1;
+            void                    UpdatePrgBank();
+
+            uint8                   prgBankSelector;
+            uint8*                  prgBank0;
+            uint8*                  prgBank1;
             // Memory from the cartridge
-            uint8*          prg;
-            uint8*          chr;
+            uint8*                  prg;
+            uint8*                  chr;
 
         }; // struct Mapper2
 
@@ -171,21 +187,24 @@ namespace hydra {
 
             Mapper3( Cpu* cpu, Cart& cart );
 
-            uint8           ChrRead( uint16 address ) override;
-            void            ChrWrite( uint16 address, uint8 data ) override;
+            uint8                   ChrRead( uint16 address ) override;
+            void                    ChrWrite( uint16 address, uint8 data ) override;
 
-            uint8           PrgRead( uint16 address ) override;
-            void            PrgWrite( uint16 address, uint8 data ) override;
+            uint8                   PrgRead( uint16 address ) override;
+            void                    PrgWrite( uint16 address, uint8 data ) override;
 
-            void            UpdateChrBank();
+            void                    SaveState( Stream& stream ) override;
+            void                    LoadState( Stream& stream ) override;
 
-            uint16          prgAddressMask;
-            uint8           chrBankSelector;
-            uint8*          chrBank;
+            void                    UpdateChrBank();
+
+            uint16                  prgAddressMask;
+            uint8                   chrBankSelector;
+            uint8*                  chrBank;
 
             // Memory from the cartridge
-            uint8*          prg;
-            uint8*          chr;
+            uint8*                  prg;
+            uint8*                  chr;
 
         }; // struct Mapper3
 
@@ -194,39 +213,42 @@ namespace hydra {
 
             Mapper4( Cpu* cpu, Cart& cart );
 
-            uint8           ChrRead( uint16 address ) override;
-            void            ChrWrite( uint16 address, uint8 data ) override;
+            uint8                   ChrRead( uint16 address ) override;
+            void                    ChrWrite( uint16 address, uint8 data ) override;
 
-            uint8           PrgRead( uint16 address ) override;
-            void            PrgWrite( uint16 address, uint8 data ) override;
+            uint8                   PrgRead( uint16 address ) override;
+            void                    PrgWrite( uint16 address, uint8 data ) override;
 
-            void            PpuAddress12( uint8 value ) override;
+            void                    SaveState( Stream& stream ) override;
+            void                    LoadState( Stream& stream ) override;
 
-            void            UpdateBanks();
-            void            UpdateMirroring();
+            void                    PpuAddress12( uint8 value ) override;
 
-            static const uint16 kMMC3PrgBankSize = 0x2000;
-            static const uint16 kMMC3PrgBankMask = kMMC3PrgBankSize - 1;
-            static const uint16 kMMC3ChrBankSize = 0x400;
-            static const uint16 kMMC3ChrBankMask = kMMC3ChrBankSize - 1;
+            void                    UpdateBanks();
+            void                    UpdateMirroring();
 
-            uint8           prgRomBankCount, chrRomBankCount;
-            uint8*          prgMemory;
-            uint8*          chrMemory;
-            uint8*          prgRamMemory;
+            static const uint16     kMMC3PrgBankSize = 0x2000;
+            static const uint16     kMMC3PrgBankMask = kMMC3PrgBankSize - 1;
+            static const uint16     kMMC3ChrBankSize = 0x400;
+            static const uint16     kMMC3ChrBankMask = kMMC3ChrBankSize - 1;
 
-            uint8*          prgBanks[4];
-            uint8*          chrBanks[8];
+            uint8                   prgRomBankCount, chrRomBankCount;
+            uint8*                  prgMemory;
+            uint8*                  chrMemory;
+            uint8*                  prgRamMemory;
 
-            uint8           registers[8];
-            uint8           bankSelector;
-            uint8           mirroringRegister;
-            uint8           prgRamProtect;
+            uint8*                  prgBanks[4];
+            uint8*                  chrBanks[8];
 
-            uint8           irqReloadPeriod;
-            uint8           irqCounter;
-            uint8           irqReload;
-            uint8           irqEnable;
+            uint8                   registers[8];
+            uint8                   bankSelector;
+            uint8                   mirroringRegister;
+            uint8                   prgRamProtect;
+
+            uint8                   irqReloadPeriod;
+            uint8                   irqCounter;
+            uint8                   irqReload;
+            uint8                   irqEnable;
         };
 
         //////////////////////////////////////////////////////////////////////////
@@ -240,14 +262,17 @@ namespace hydra {
                 Zoom_2x
             };
 
-            void            Init();
-            void            Terminate();
+            void                    Init();
+            void                    Terminate();
 
-            void            WritePixel( uint16 scanline, uint16 pixel, uint32 color );
+            void                    WritePixel( uint16 scanline, uint16 pixel, uint32 color );
 
-            uint8*          paletteIndices;
-            uint32*         frameBuffer;
-            ZoomFactor      zoomFactor = Zoom_1x;
+            void                    SaveState( Stream& stream );
+            void                    LoadState( Stream& stream );
+
+            uint8*                  paletteIndices;
+            uint32*                 frameBuffer;
+            ZoomFactor              zoomFactor = Zoom_1x;
 
         }; // struct Screen
 
@@ -279,34 +304,37 @@ namespace hydra {
                 NRom = 0,
             };
 
-            static const uint32 kCpuAddressSpace = Kilo( 64 );
-            static const uint32 kCpuPages = 64;
-            static const uint32 kCpuPageSize = kCpuAddressSpace / kCpuPages;
-            static const uint16 kCpuPageAddressMask = kCpuPageSize - 1; // 0x3FF;
-            static const uint16 kRamSize = Kilo( 2 ); // 0x800
+            static const uint32     kCpuAddressSpace = Kilo( 64 );
+            static const uint32     kCpuPages = 64;
+            static const uint32     kCpuPageSize = kCpuAddressSpace / kCpuPages;
+            static const uint16     kCpuPageAddressMask = kCpuPageSize - 1; // 0x3FF;
+            static const uint16     kRamSize = Kilo( 2 ); // 0x800
 
-            static const uint16 kPrgRomOffsetBank0 = Kilo( 32 );
-            static const uint16 kPrgRomOffsetBank1 = Kilo( 48 );
+            static const uint16     kPrgRomOffsetBank0 = Kilo( 32 );
+            static const uint16     kPrgRomOffsetBank1 = Kilo( 48 );
 
-            ForceInline uint16 AddressToPage( uint16 address ) { return address >> 10; }
+            ForceInline uint16      AddressToPage( uint16 address ) { return address >> 10; }
 
-            Cart*               cart;
-            Ppu*                ppu;
-            Cpu*                cpu;
-            Apu*                apu;
-            Controller*         controllers;
-            Mapper*             mapper;
+            Cart*                   cart;
+            Ppu*                    ppu;
+            Cpu*                    cpu;
+            Apu*                    apu;
+            Controller*             controllers;
+            Mapper*                 mapper;
 
-            void                Init( Cart* cart, Cpu* cpu, Ppu* ppu, Controller* controllers, Apu* apu );
-            void                LoadMapper();
+            void                    Init( Cart* cart, Cpu* cpu, Ppu* ppu, Controller* controllers, Apu* apu );
+            void                    LoadMapper();
 
-            uint8               CpuRead( uint16 address );
-            void                CpuWrite( uint16 address, uint8 data );
+            uint8                   CpuRead( uint16 address );
+            void                    CpuWrite( uint16 address, uint8 data );
 
-            uint8               PpuRead( uint16 address );
-            void                PpuWrite( uint16 address, uint8 data );
+            uint8                   PpuRead( uint16 address );
+            void                    PpuWrite( uint16 address, uint8 data );
 
-            void                PpuAddress12( uint8 value );
+            void                    PpuAddress12( uint8 value );
+
+            void                    SaveState( Stream& stream );
+            void                    LoadState( Stream& stream );
         }; // struct MemoryController
 
         // general architecture
@@ -322,9 +350,9 @@ namespace hydra {
         struct Cpu {
 
             // Addresses to jump to for different events.
-            static const uint16 kNmiVector = 0xFFFA;
-            static const uint16 kResetVector = 0xFFFC;
-            static const uint16 kIrqVector = 0xFFFE;
+            static const uint16     kNmiVector = 0xFFFA;
+            static const uint16     kResetVector = 0xFFFC;
+            static const uint16     kIrqVector = 0xFFFE;
 
             // Registers
             uint8       A, X, Y, S;
@@ -366,81 +394,84 @@ namespace hydra {
                 IRQSource_MMC3          = 1 << 2,
             };
 
-            uint64      cycles;
-            uint32      frameCycles;
+            uint64                  cycles;
+            uint32                  frameCycles;
 
-            uint16      opAddress;
-            uint8       opCode;
+            uint16                  opAddress;
+            uint8                   opCode;
 
-            uint16      effectiveAddress;
+            uint16                  effectiveAddress;
 
             // Interrupt flags: non maskable interrupt, interrupt request.
-            uint8       nmistate;
-            uint8       irqstate;
+            uint8                   nmistate;
+            uint8                   irqstate;
 
-            uint8       handleIrq, prevhandleIrq;
+            uint8                   handleIrq, prevhandleIrq;
 
-            uint16      dmaCounterSprite;
-            uint8       dmcStallCounter;
+            uint16                  dmaCounterSprite;
+            uint8                   dmcStallCounter;
 
             static const uint32 kRamSize = 0x800;
 
-            uint8       ram[kRamSize];
+            uint8                   ram[kRamSize];
 
-            MemoryController*     memoryController;
-            Ppu*        ppu;
-            Apu*        apu;
+            MemoryController*       memoryController;
+            Ppu*                    ppu;
+            Apu*                    apu;
 
-            bool        showAsm;
-            bool        testAsm;
+            bool                    showAsm;
+            bool                    testAsm;
 
 #if defined(NES_SHOW_ASM)
             StaticArray<char, 256> asmBuffer;
 #endif
-            void        Init( Ppu* ppu, Apu* apu, MemoryController* memoryController );
-            void        Reset();
+            void                    Init( Ppu* ppu, Apu* apu, MemoryController* memoryController );
+            void                    Reset();
 
-            void        Step();
-            void        Tick();
+            void                    SaveState( Stream& stream );
+            void                    LoadState( Stream& stream );
 
-            uint8       MemoryRead( uint16 address );
-            void        MemoryWrite( uint16 address, uint8 data );
+            void                    Step();
+            void                    Tick();
 
-            void        Push( uint8 data );
-            uint8       Pop();
+            uint8                   MemoryRead( uint16 address );
+            void                    MemoryWrite( uint16 address, uint8 data );
 
-            void        SetZeroOrNegativeFlags( uint8 value );
-            void        SetPS( uint8 value );
-            uint8       GetPS();
+            void                    Push( uint8 data );
+            uint8                   Pop();
 
-            void        SetNMI();
-            void        ClearNMI();
+            void                    SetZeroOrNegativeFlags( uint8 value );
+            void                    SetPS( uint8 value );
+            uint8                   GetPS();
 
-            void        SetIRQ( uint8 mask );
-            void        ClearIRQ( uint8 mask );
+            void                    SetNMI();
+            void                    ClearNMI();
 
-            void        HandleInterrupt();
+            void                    SetIRQ( uint8 mask );
+            void                    ClearIRQ( uint8 mask );
 
-            void        ExecuteSpriteDMA( uint8 offset );
-            void        LoadDMCSample();
+            void                    HandleInterrupt();
+
+            void                    ExecuteSpriteDMA( uint8 offset );
+            void                    LoadDMCSample();
 
 #if defined(NES_SHOW_ASM)
-            void        CpuDisassembleInit();
-            uint16      CpuDisassemble( char *buffer, uint16 opcodepos );
+            void                    CpuDisassembleInit();
+            uint16                  CpuDisassemble( char *buffer, uint16 opcodepos );
 #endif
 
-            void        DummyRead() { MemoryRead( PC ); }
-            void        DummyRead( uint16 address ) { Tick();/* MemoryRead( address );*/ }
+            void                    DummyRead() { MemoryRead( PC ); }
+            void                    DummyRead( uint16 address ) { Tick();/* MemoryRead( address );*/ }
             
-            uint8       MemoryReadByte() { return MemoryRead( PC++ ); }
+            uint8                   MemoryReadByte() { return MemoryRead( PC++ ); }
             
-            uint16      MemoryReadWord() {
+            uint16                  MemoryReadWord() {
                 uint16 address = MemoryReadByte();
                 address |= MemoryReadByte() << 8;
                 return address;
             }
 
-            uint16      MemoryReadWord( uint16 address ) {
+            uint16                  MemoryReadWord( uint16 address ) {
                 uint8 lowerByte = MemoryRead( address );
                 uint8 higherByte = MemoryRead( address + 1 );
                 return ( lowerByte | ( higherByte << 8 ) );
@@ -980,14 +1011,14 @@ namespace hydra {
         //////////////////////////////////////////////////////////////////////////
         struct Ppu {
 
-            static const uint16 kMaxScanlines = 262;
-            static const uint16 kMaxPixels = 341;
-            static const uint8 kMaxSprites = 64;
-            static const uint8 kMaxPerLineSprites = 8;
+            static const uint16     kMaxScanlines = 262;
+            static const uint16     kMaxPixels = 341;
+            static const uint8      kMaxSprites = 64;
+            static const uint8      kMaxPerLineSprites = 8;
 
-            static const uint16 kNameTableRamSize = 0x800;
-            static const uint16 kPaletteRamSize = 32;
-            static const uint16 kOAMRamSize = 0x100;
+            static const uint16     kNameTableRamSize = 0x800;
+            static const uint16     kPaletteRamSize = 32;
+            static const uint16     kOAMRamSize = 0x100;
 
             enum Registers {
                 R2000_PPUCTRL = 0,
@@ -1158,6 +1189,9 @@ namespace hydra {
 
             uint32                  GetPaletteColor( uint8 index );
 
+            void                    SaveState( Stream& stream );
+            void                    LoadState( Stream& stream );
+
         }; // struct Ppu
 
         //////////////////////////////////////////////////////////////////////////
@@ -1325,6 +1359,9 @@ namespace hydra {
             void                    Mute( bool value );
             void                    SetVolume( float value );
 
+            void                    SaveState( Stream& stream );
+            void                    LoadState( Stream& stream );
+
             Pulse                   pulse1, pulse2;
             Triangle                triangle;
             Noise                   noise;
@@ -1374,45 +1411,48 @@ namespace hydra {
                 Button_Count
             };
 
-            static cstring kDefaultKeys0Names[Button_Count];
+            static cstring          kDefaultKeys0Names[Button_Count];
 
-            uint32   portdata;
-            uint8    registers[2];
-            uint8    state[2];
-            uint8    readBitIndex;
-            bool     strobeToggle;
+            uint32                  portdata;
+            uint8                   registers[2];
+            uint8                   state[2];
+            uint8                   readBitIndex;
+            bool                    strobeToggle;
 
-            void     Reset();
-            void     NewFrame(); // Clear cached button state
+            void                    Reset();
+            void                    NewFrame(); // Clear cached button state
 
-            void     SetButton( uint8 controller, Buttons button );
+            void                    SetButton( uint8 controller, Buttons button );
 
-            uint8    ReadState();
-            void     WriteState( uint8 strobe );
+            uint8                   ReadState();
+            void                    WriteState( uint8 strobe );
+
+            void                    SaveState( Stream& stream );
+            void                    LoadState( Stream& stream );
         }; // struct Controller
 
-        void        Init( Options* options );
-        void        Reset();
-        void        LoadRom( cstring path );
-        void        SaveSRAM();
+        void                    Init( Options* options );
+        void                    Reset();
+        void                    LoadRom( cstring path );
+        void                    SaveSRAM();
 
-        void        SaveState( cstring path );
-        void        LoadState( cstring path );
+        void                    SaveState( Stream& stream );
+        void                    LoadState( Stream& stream );
 
         // Memory mapping:
         // Both cpu and ppu read/write through a mapper
-        Cpu         cpu;
-        Ppu         ppu;
-        Apu         apu;
-        Screen      screen;
-        Controller  controllers;
+        Cpu                     cpu;
+        Ppu                     ppu;
+        Apu                     apu;
+        Screen                  screen;
+        Controller              controllers;
 
-        Cart        cart;
-        MemoryController      memoryController;
+        Cart                    cart;
+        MemoryController        memoryController;
 
-        Options*    options;
+        Options*                options;
 
-        int         screenTexture;
+        int                     screenTexture;
     }; // struct Nes
 
 } // namespace hydra

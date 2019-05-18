@@ -77,6 +77,32 @@ struct Options {
     uint16              keys0[Nes::Controller::Button_Count];
 }; // struct Options
 
+struct Stream {
+    uint8_t*            data;
+    uint32              offset;
+
+    void Start( void* data, uint32 size ) {
+        this->data = (uint8_t*)data;
+        offset = 0;
+    }
+
+    void Reset() {
+        offset = 0;
+    }
+
+    void Read( void* destination, uint32 size ) {
+
+        // ...if ( offset + size )
+        memcpy( destination, data + offset, size );
+        offset += size;
+    }
+
+    void Write( void* source, uint32 size ) {
+        memcpy( data + offset, source, size );
+        offset += size;
+    }
+};
+
 struct RenderSystemNes;
 struct AudioSystemNes;
 struct InputSystemNes;
@@ -129,16 +155,19 @@ struct MainState : public application::State {
 
     MainState();
 
-    void Init( application::InitContext& context ) override;
-    bool Update( application::UpdateContext& context  ) override;
-    void Render( application::RenderContext& context  ) override;
-    void Terminate( application::TerminateContext& context ) override;
-    void Resize( uint16 width, uint16 height ) override;
+    void                Init( application::InitContext& context ) override;
+    bool                Update( application::UpdateContext& context  ) override;
+    void                Render( application::RenderContext& context  ) override;
+    void                Terminate( application::TerminateContext& context ) override;
+    void                Resize( uint16 width, uint16 height ) override;
 
-    void LoadOptions( cstring iniFilename );
-    void SaveOptions( cstring iniFilename );
+    void                LoadOptions( cstring iniFilename );
+    void                SaveOptions( cstring iniFilename );
+
+    void                LoadState();
+    void                SaveState();
 
     // Cpu test based on nestest.nes rom and nestest.log.txt file. It does a simple string comparison to check CPU registers and expected values for each step.
-    void LoadCpuTest();
-    void ExecuteCpuTest();
+    void                LoadCpuTest();
+    void                ExecuteCpuTest();
 };

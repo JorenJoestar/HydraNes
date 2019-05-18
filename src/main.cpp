@@ -758,6 +758,14 @@ void MainState::SaveOptions( cstring ini_filename ) {
     fclose( ini_file );
 }
 
+void MainState::LoadState()
+{
+}
+
+void MainState::SaveState()
+{
+}
+
 void MainState::LoadCpuTest() {
     cstring filename = "nestest.log.txt";
     OpenFile( filename, "r", &cpuTestFile );

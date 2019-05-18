@@ -200,6 +200,14 @@ void Nes_Apu::run_until( cpu_time_t end_time )
 	}
 }
 
+void Nes_Apu::save_state( Stream & stream )
+{
+}
+
+void Nes_Apu::load_state( Stream & stream )
+{
+}
+
 void Nes_Apu::end_frame( cpu_time_t end_time )
 {
 	if ( end_time > last_time )

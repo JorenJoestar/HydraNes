@@ -320,8 +320,9 @@ LRESULT CALLBACK WndProc( HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam ) {
             break;
 
         case WM_MOUSEWHEEL: {
-            window::events::MouseWheel mouseEvent{ (int16)HIWORD( wParam ) };
+            window::events::MouseWheel mouseEvent{ (int16)GET_WHEEL_DELTA_WPARAM( wParam ) };
             window->_eventStream.AddEvent( &mouseEvent );
+            window->callbacksActivationMask.set( window::callbacks::Type_MouseWheel );
             break;
         }
         case WM_INPUT:
@@ -672,6 +673,15 @@ void WindowSystem::ExecuteCallbacks() {
 
         callbacksActivationMask.reset( window::callbacks::Type_ChangeDevice );
     }
+
+    if ( callbacksActivationMask.test( window::callbacks::Type_MouseWheel ) ) {
+        for ( uint32 i = 0; i < mouseWheelCallbacks.size(); ++i ) {
+            window::callbacks::ChangeMouseWheel& callback = mouseWheelCallbacks[i];
+            callback( mouseWheelCallbackUserData[i], mouseWheelData );
+        }
+
+        callbacksActivationMask.reset( window::callbacks::Type_MouseWheel );
+    }
 }
 
 void WindowSystem::AddRequestExitCallback( window::callbacks::RequestExit callback, void* userData ) {
@@ -702,6 +712,11 @@ void WindowSystem::AddFocusCallback( window::callbacks::ChangeFocus callback, vo
 void WindowSystem::AddDeviceCallback( window::callbacks::ChangeDevice callback, void* userData ) {
     deviceCallbacks.push_back( callback );
     deviceCallbackUserData.push_back( userData );
+}
+
+void WindowSystem::AddMouseWheelCallback( window::callbacks::ChangeMouseWheel callback, void * userData ) {
+    mouseWheelCallbacks.push_back( callback );
+    mouseWheelCallbackUserData.push_back( userData );
 }
 
 //////////////////////////////////////////////////////////////////////////

@@ -793,6 +793,7 @@ Nes::Mapper4::Mapper4( Cpu* cpu, Cart& cart ) : Mapper(cpu) {
     irqReloadPeriod = 0;
 
     UpdateBanks();
+    UpdateMirroring();
 }
 
 uint8 Nes::Mapper4::ChrRead( uint16 address ) {
@@ -907,6 +908,9 @@ void Nes::Mapper4::UpdateMirroring() {
 }
 
 void Nes::Mapper4::UpdateBanks() {
+    // Fix for register exceeding bank count. Fixes Mission Impossible.
+    registers[6] %= prgRomBankCount;
+    registers[7] %= prgRomBankCount;
 
     // Prg mode 1
     if ( (bankSelector & 0x40) >> 6 ) {

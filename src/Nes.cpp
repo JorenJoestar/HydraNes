@@ -520,6 +520,7 @@ uint8 Nes::Mapper1::PrgRead( uint16 address ) {
 void Nes::Mapper1::PrgWrite( uint16 address, uint8 data ) {
     if ( address < 0x8000 ) {
         //Assert( prgRamWrite );
+        if ((address - 0x6000) < 0x0000) { address = 0x0000; }
         prgRam[address - 0x6000] = data;
     }
     else if ( address & 0x8000 ) {
@@ -811,6 +812,7 @@ uint8 Nes::Mapper4::PrgRead( uint16 address ) {
 void Nes::Mapper4::PrgWrite( uint16 address, uint8 data ) {
 
     if ( address < 0x8000 ) {
+        if ((address - 0x6000) < 0x0000) { address = 0x0000; }
         prgRamMemory[address - 0x6000] = data;
     }
     else if ( address & 0x8000 ) {
